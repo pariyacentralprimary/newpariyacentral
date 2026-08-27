@@ -37,17 +37,59 @@ async function loadMasterList(classId) {
   if (!classId) { body.innerHTML = ""; return; }
   body.innerHTML = "Loading…";
   const isRegistrar = (state.allRoles || []).some(r => r === "registrar_primary" || r === "registrar_secondary");
+  const className = state.classes.find(c => c.id === classId)?.name || "";
   const { data: students } = await sb.from("students")
-    .select("admission_no, full_name, gender, date_of_birth, guardian_name, guardian_phone, staff:registered_by(full_name)")
+    .select("id, admission_no, full_name, gender, date_of_birth, guardian_name, guardian_phone, staff:registered_by(full_name)")
     .eq("class_id", classId).eq("is_active", true).order("full_name");
-  body.innerHTML = `<div style="overflow-x:auto;"><table class="data-table">
+
+  body.innerHTML = `<div style="overflow-x:auto;"><table class="data-table" id="masterListTable">
     <thead><tr><th>#</th><th>Adm No</th><th>Name</th><th>Gender</th><th>DOB</th><th>Guardian</th><th>Phone</th>${isRegistrar?"<th>Registered By</th>":""}</tr></thead>
     <tbody>${(students||[]).map((s,i) => `<tr>
       <td>${i+1}</td><td>${s.admission_no}</td><td class="name-cell">${s.full_name}</td>
       <td>${s.gender||"-"}</td><td>${s.date_of_birth||"-"}</td><td>${s.guardian_name||"-"}</td><td>${s.guardian_phone||"-"}</td>
       ${isRegistrar?`<td>${s.staff?.full_name||"—"}</td>`:""}
     </tr>`).join("")}</tbody></table></div>
-    <button class="btn no-print" style="margin-top:12px;" onclick="window.print()"><i class="fa-solid fa-print"></i> Print</button>`;
+    <div class="no-print" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+      <button class="btn" onclick="window.print()"><i class="fa-solid fa-print"></i> Print</button>
+      <button class="btn" onclick="downloadBrandedPdf('Master List','${className.replace(/'/g,"")} — ${(state.schoolSettings.current_session||"").replace(/'/g,"")}',document.getElementById('masterListTable').outerHTML,'MasterList_${className.replace(/\s/g,"_")}.pdf')"><i class="fa-solid fa-file-pdf"></i> Download PDF</button>
+      <button class="btn" onclick="downloadBrandedWord('Master List','${className.replace(/'/g,"")} — ${(state.schoolSettings.current_session||"").replace(/'/g,"")}',document.getElementById('masterListTable').outerHTML,'MasterList_${className.replace(/\s/g,"_")}.doc')"><i class="fa-solid fa-file-word"></i> Download Word</button>
+      <button class="btn" style="margin-left:auto;" onclick="loadPositionList('${classId}','${className.replace(/'/g,"&apos;")}')"><i class="fa-solid fa-ranking-star"></i> Position List</button>
+    </div>
+    <div id="positionListHost" style="margin-top:20px;"></div>`;
+}
+
+// ============================================================
+// POSITION LIST — students in one class+term, ranked by average.
+// A dedicated exportable sheet, separate from the roster above.
+// ============================================================
+async function loadPositionList(classId, className) {
+  const host = document.getElementById("positionListHost");
+  host.innerHTML = "Loading…";
+  const termId = state.currentTermId;
+  const term = state.terms.find(t => t.id === termId);
+  const { data: rows } = await sb.from("student_term_summary")
+    .select("average, total_marks, class_position, class_position_label, students(full_name, admission_no)")
+    .eq("class_id", classId).eq("term_id", termId)
+    .not("class_position", "is", null)
+    .order("class_position", { ascending: true });
+
+  host.innerHTML = `
+    <div class="settings-card-title">Position List — ${term?.name || ""}</div>
+    <div style="overflow-x:auto;"><table class="data-table" id="positionListTable">
+      <thead><tr><th>Position</th><th>Adm No</th><th>Name</th><th>Total</th><th>Average</th></tr></thead>
+      <tbody>${(rows||[]).map(r => `<tr>
+        <td><strong>${r.class_position_label}</strong></td>
+        <td>${r.students.admission_no}</td>
+        <td class="name-cell">${r.students.full_name}</td>
+        <td>${r.total_marks ?? "—"}</td>
+        <td>${r.average != null ? Number(r.average).toFixed(1) : "—"}</td>
+      </tr>`).join("") || `<tr><td colspan="5" style="color:var(--dash-muted);">No scores entered yet for this term.</td></tr>`}</tbody>
+    </table></div>
+    <div class="no-print" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+      <button class="btn" onclick="window.print()"><i class="fa-solid fa-print"></i> Print</button>
+      <button class="btn" onclick="downloadBrandedPdf('Position List','${className} — ${(term?.name||"").replace(/'/g,"")} — ${(state.schoolSettings.current_session||"").replace(/'/g,"")}',document.getElementById('positionListTable').outerHTML,'PositionList_${className.replace(/\s/g,"_")}.pdf')"><i class="fa-solid fa-file-pdf"></i> Download PDF</button>
+      <button class="btn" onclick="downloadBrandedWord('Position List','${className} — ${(term?.name||"").replace(/'/g,"")} — ${(state.schoolSettings.current_session||"").replace(/'/g,"")}',document.getElementById('positionListTable').outerHTML,'PositionList_${className.replace(/\s/g,"_")}.doc')"><i class="fa-solid fa-file-word"></i> Download Word</button>
+    </div>`;
 }
 
 // ============================================================

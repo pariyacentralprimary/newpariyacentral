@@ -921,7 +921,14 @@ async function loadMyReport(termId) {
     </div>`;
     return;
   }
-  host.innerHTML = await buildReportCardHtml(state.student.id, termId) + `
+  const { data: myStanding } = await sb.from("student_term_summary").select("class_position").eq("student_id", state.student.id).eq("term_id", termId).maybeSingle();
+  const topperBanner = myStanding?.class_position === 1 ? `
+    <div class="settings-card" style="text-align:center;background:var(--dash-green-soft);border-color:var(--dash-green);">
+      <div style="font-size:28px;">🏆</div>
+      <div style="font-weight:900;color:var(--dash-accent);font-size:15px;">Congratulations! You are 1st in your class this term.</div>
+      <div style="font-size:12px;color:var(--dash-muted);margin-top:4px;">See Settings → nothing to do here, just keep it up! Ask your admin about a Best Student certificate.</div>
+    </div>` : "";
+  host.innerHTML = topperBanner + await buildReportCardHtml(state.student.id, termId) + `
     <div class="no-print" style="text-align:center;margin-top:16px;">
       <button class="btn btn-green" onclick="window.print()"><i class="fa-solid fa-print"></i> Print / Download</button>
     </div>`;

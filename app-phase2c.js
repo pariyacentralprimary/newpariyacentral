@@ -488,6 +488,7 @@ async function renderAnalytics() {
 }
 async function loadAnalytics() {
   const termId = document.getElementById("anTermSelect").value;
+  const term = state.terms.find(t => t.id === termId);
   const body = document.getElementById("anBody");
   body.innerHTML = "Loading…";
   const { data: rows } = await sb.from("student_term_summary").select("class_id, average, classes(name)").eq("term_id", termId);
@@ -500,16 +501,46 @@ async function loadAnalytics() {
     if ((r.average||0) >= 40) byClass[key].pass += 1;
   });
   const classNames = Object.keys(byClass).sort();
+  const avgs = classNames.map(name => byClass[name].count ? +(byClass[name].total/byClass[name].count).toFixed(1) : 0);
+  const passRates = classNames.map(name => byClass[name].count ? Math.round((byClass[name].pass/byClass[name].count)*100) : 0);
+
   body.innerHTML = `<div class="card-grid">${classNames.map(name => {
     const d = byClass[name];
     const avg = d.count ? (d.total/d.count).toFixed(1) : "—";
-    const passRate = d.count ? Math.round((d.pass/d.count)*100) : 0;
     return statCard("fa-chart-simple", avg, `${name} — Class Average`) ;
   }).join("")}</div>
-  <div style="margin-top:16px;overflow-x:auto;"><table class="data-table">
+  <div class="settings-card" style="margin-top:16px;">
+    <div class="settings-card-title">Class Average by Class</div>
+    <canvas id="anAvgChart" height="90"></canvas>
+  </div>
+  <div class="settings-card" style="margin-top:16px;">
+    <div class="settings-card-title">Pass Rate (≥40) by Class</div>
+    <canvas id="anPassChart" height="90"></canvas>
+  </div>
+  <div style="margin-top:16px;overflow-x:auto;"><table class="data-table" id="analyticsTable">
     <thead><tr><th>Class</th><th>Students Scored</th><th>Class Average</th><th>Pass Rate (≥40)</th></tr></thead>
     <tbody>${classNames.map(name => { const d = byClass[name]; const avg = d.count?(d.total/d.count).toFixed(1):"—"; const pr = d.count?Math.round((d.pass/d.count)*100):0;
-      return `<tr><td class="name-cell">${name}</td><td>${d.count}</td><td>${avg}</td><td>${pr}%</td></tr>`; }).join("")}</tbody></table></div>`;
+      return `<tr><td class="name-cell">${name}</td><td>${d.count}</td><td>${avg}</td><td>${pr}%</td></tr>`; }).join("")}</tbody></table></div>
+  <div class="no-print" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+    <button class="btn" onclick="window.print()"><i class="fa-solid fa-print"></i> Print</button>
+    <button class="btn" onclick="downloadBrandedPdf('Analytics','${(term?.name||"").replace(/'/g,"")} — ${(state.schoolSettings.current_session||"").replace(/'/g,"")}',document.getElementById('analyticsTable').outerHTML,'Analytics_${(term?.name||"").replace(/\s/g,"_")}.pdf')"><i class="fa-solid fa-file-pdf"></i> Download PDF</button>
+    <button class="btn" onclick="downloadBrandedWord('Analytics','${(term?.name||"").replace(/'/g,"")} — ${(state.schoolSettings.current_session||"").replace(/'/g,"")}',document.getElementById('analyticsTable').outerHTML,'Analytics_${(term?.name||"").replace(/\s/g,"_")}.doc')"><i class="fa-solid fa-file-word"></i> Download Word</button>
+  </div>`;
+
+  if (typeof Chart === "undefined") return;
+  if (state._anAvgChart) state._anAvgChart.destroy();
+  if (state._anPassChart) state._anPassChart.destroy();
+  const goldGreen = getComputedStyle(document.documentElement).getPropertyValue("--dash-green").trim() || "#C9973F";
+  state._anAvgChart = new Chart(document.getElementById("anAvgChart"), {
+    type: "bar",
+    data: { labels: classNames, datasets: [{ label: "Class Average", data: avgs, backgroundColor: goldGreen }] },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, max: 100 } } }
+  });
+  state._anPassChart = new Chart(document.getElementById("anPassChart"), {
+    type: "bar",
+    data: { labels: classNames, datasets: [{ label: "Pass Rate %", data: passRates, backgroundColor: "#5B7B4F" }] },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, max: 100 } } }
+  });
 }
 
 // ============================================================

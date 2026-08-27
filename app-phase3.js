@@ -8,8 +8,7 @@ async function renderClassManagement() {
       <div class="settings-card-title">Add a Class</div>
       <div class="field"><label>Class Name</label><input id="clsName" placeholder="e.g. SS 3"/></div>
       <div class="field"><label>Category</label><select id="clsCategory">
-        <option value="nursery">Nursery</option><option value="primary">Primary</option>
-        <option value="jss">JSS</option><option value="ss">SS</option>
+        <option value="primary">Primary</option>
       </select></div>
       <div class="field"><label>Sort Order (controls display order, lower = earlier)</label><input id="clsSortOrder" type="number" value="99"/></div>
       <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dash-muted);margin-bottom:14px;">
@@ -50,7 +49,7 @@ function editClass(cls) {
   openModal(`<h3>Edit Class</h3>
     <div class="field"><label>Class Name</label><input id="eclsName" value="${cls.name}"/></div>
     <div class="field"><label>Category</label><select id="eclsCategory">
-      ${["nursery","primary","jss","ss"].map(c => `<option value="${c}" ${cls.category===c?"selected":""}>${c.toUpperCase()}</option>`).join("")}
+      ${["primary"].map(c => `<option value="${c}" ${cls.category===c?"selected":""}>${c.toUpperCase()}</option>`).join("")}
     </select></div>
     <div class="field"><label>Sort Order</label><input id="eclsSortOrder" type="number" value="${cls.sort_order}"/></div>
     <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dash-muted);margin-bottom:14px;">

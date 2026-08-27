@@ -1,5 +1,5 @@
 // ============================================================
-// PARIYA SCHOOL MANAGEMENT SYSTEM — Supabase Edition
+// PARIYA CENTRAL PRIMARY — REPORT CARD SYSTEM — Supabase Edition
 // ============================================================
 
 const SUPABASE_URL = "https://bjwjjacqzvfxyjxkazgo.supabase.co";
@@ -179,8 +179,8 @@ async function loadReferenceData() {
   state.activeTerm = (terms || []).find(t => t.is_active) || (terms || [])[0];
   state.currentTermId = state.activeTerm ? state.activeTerm.id : null;
 
-  document.getElementById("loginSchoolName").textContent = state.schoolSettings.school_name || "Pariya School Management System";
-  document.getElementById("sidebarSchoolName").textContent = state.schoolSettings.school_name || "Pariya SMS";
+  document.getElementById("loginSchoolName").textContent = state.schoolSettings.school_name || "Pariya Central Primary";
+  document.getElementById("sidebarSchoolName").textContent = state.schoolSettings.school_name || "Pariya Central Primary";
 }
 
 function showAppShell(show) {

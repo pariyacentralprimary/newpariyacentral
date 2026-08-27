@@ -17,11 +17,8 @@ async function renderMasterList() {
       const { data: assigns } = await sb.from("class_teacher_subjects").select("class_id").eq("staff_id", state.staff.id);
       (assigns || []).forEach(a => idSet.add(a.class_id));
     }
-    if (roles.includes("registrar_primary")) {
-      state.classes.filter(c => c.category === "nursery" || c.category === "primary").forEach(c => idSet.add(c.id));
-    }
-    if (roles.includes("registrar_secondary")) {
-      state.classes.filter(c => c.category === "jss" || c.category === "ss").forEach(c => idSet.add(c.id));
+    if (roles.includes("registrar")) {
+      state.classes.forEach(c => idSet.add(c.id));
     }
     if (idSet.size) myClasses = state.classes.filter(c => idSet.has(c.id));
   }
@@ -36,7 +33,7 @@ async function loadMasterList(classId) {
   const body = document.getElementById("mlBody");
   if (!classId) { body.innerHTML = ""; return; }
   body.innerHTML = "Loading…";
-  const isRegistrar = (state.allRoles || []).some(r => r === "registrar_primary" || r === "registrar_secondary");
+  const isRegistrar = (state.allRoles || []).includes("registrar");
   const className = state.classes.find(c => c.id === classId)?.name || "";
   const { data: students } = await sb.from("students")
     .select("id, admission_no, full_name, gender, date_of_birth, guardian_name, guardian_phone, staff:registered_by(full_name)")
@@ -159,7 +156,7 @@ async function loadStaffList() {
     </div>`).join("")}</div>`;
 }
 function openStaffForm(staff) {
-  const positions = ["Admin","Headmaster","Principal","Bursar","Admin Officer","Teacher","Registrar Primary","Registrar Secondary"];
+  const positions = ["Admin","Headmaster","Principal","Bursar","Admin Officer","Teacher","Registrar"];
   openModal(`<h3>${staff ? "Edit" : "Add"} Staff</h3>
     <div class="field"><label>Full Name</label><input id="sfName" value="${staff?.full_name||""}"/></div>
     <div class="field"><label>Staff ID (login)</label><input id="sfCode" value="${staff?.staff_code||""}" data-original="${staff?.staff_code||""}"/></div>
@@ -189,12 +186,12 @@ async function saveStaff(staffId) {
 
   let row;
   if (staffId) {
-    const { data, error } = await sb.from("staff").update({ full_name, staff_code, phone, email, positions, is_admin, updated_at: new Date().toISOString() }).eq("id", staffId).select().single();
+    const { data, error } = await sb.from("staff").update({ full_name, staff_code, phone, email, positions, is_admin, updated_at: new Date().toISOString() }).eq("id", staffId).select("id, staff_code").single();
     if (error) { alert(error.message); return; }
     row = data;
   } else {
     const password_hash_res = await sb.rpc("hash_secret", { p_plain: password });
-    const { data, error } = await sb.from("staff").insert({ full_name, staff_code, phone, email, positions, is_admin, password_hash: password_hash_res.data }).select().single();
+    const { data, error } = await sb.from("staff").insert({ full_name, staff_code, phone, email, positions, is_admin, password_hash: password_hash_res.data }).select("id, staff_code").single();
     if (error) { alert(error.message); return; }
     row = data;
   }
@@ -333,11 +330,11 @@ async function saveStudent(studentId) {
     // so unless a new password was also given, fall back to the
     // current school-wide default so they can still sign in.
     if (admChanged && !password) updatePayload.password_hash = null;
-    const { data, error } = await sb.from("students").update(updatePayload).eq("id", studentId).select().single();
+    const { data, error } = await sb.from("students").update(updatePayload).eq("id", studentId).select("id, admission_no").single();
     if (error) { alert(error.message); return; }
     row = data;
   } else {
-    const { data, error } = await sb.from("students").insert({ ...payload, admission_no }).select().single();
+    const { data, error } = await sb.from("students").insert({ ...payload, admission_no }).select("id, admission_no").single();
     if (error) { alert(error.message); return; }
     row = data;
   }
@@ -372,6 +369,11 @@ async function renderFees() {
         ${state.terms.map(t => `<option value="${t.id}" ${t.id===state.currentTermId?"selected":""}>${t.name}</option>`).join("")}</select></div>
       <div id="feeOverviewBody">Loading…</div>
     </div>
+    <div class="settings-card">
+      <div class="settings-card-title">Fee Structure by Class</div>
+      <p style="font-size:12px;color:var(--dash-muted);">Expected fee per student, per class — Primary 6 typically costs more than Primary 1.</p>
+      <div id="feeStructureGrid"></div>
+    </div>
     <div class="field"><label>Select Class</label>
       <select id="feeClassSelect" onchange="loadFeesGrid()"><option value="">— choose —</option>
       ${state.classes.map(c => `<option value="${c.id}">${c.name}</option>`).join("")}</select></div>
@@ -379,6 +381,26 @@ async function renderFees() {
     ${state.terms.map(t => `<option value="${t.id}" ${t.id===state.currentTermId?"selected":""}>${t.name}</option>`).join("")}</select></div>
     <div id="feeGrid"></div>`;
   await loadFeesOverview();
+  await loadFeeStructureGrid();
+}
+
+async function loadFeeStructureGrid() {
+  const host = document.getElementById("feeStructureGrid");
+  const { data: rows } = await sb.from("fee_structure").select("class_id, expected_amount, classes(name, sort_order)").order("classes(sort_order)");
+  const sorted = (rows||[]).slice().sort((a,b) => (a.classes?.sort_order||0) - (b.classes?.sort_order||0));
+  host.innerHTML = `<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Class</th><th>Expected Amount (₦)</th><th></th></tr></thead>
+    <tbody>${sorted.map(r => `<tr>
+      <td class="name-cell">${r.classes?.name}</td>
+      <td><input type="number" id="fs_amt_${r.class_id}" value="${r.expected_amount}" style="width:110px;"/></td>
+      <td><button class="btn btn-green" style="font-size:11px;padding:5px 9px;" onclick="saveFeeStructureRow('${r.class_id}')">Save</button></td>
+    </tr>`).join("")}</tbody></table></div>`;
+}
+async function saveFeeStructureRow(classId) {
+  const expected_amount = Number(document.getElementById(`fs_amt_${classId}`).value) || 0;
+  const { error } = await sb.from("fee_structure").update({ expected_amount }).eq("class_id", classId);
+  if (error) { alert(error.message); return; }
+  alert("Saved. Existing fees_status for students in this class recalculates the next time a payment is touched.");
+  loadFeesOverview();
 }
 
 async function loadFeesOverview() {
@@ -387,11 +409,11 @@ async function loadFeesOverview() {
   body.innerHTML = "Loading…";
 
   const [{ data: structure }, { data: students }, { data: payments }] = await Promise.all([
-    sb.from("fee_structure").select("category, expected_amount"),
-    sb.from("students").select("id, class_id, classes(category)").eq("is_active", true),
+    sb.from("fee_structure").select("class_id, expected_amount"),
+    sb.from("students").select("id, class_id").eq("is_active", true),
     sb.from("fee_payments").select("student_id, amount_paid, is_paid_override").eq("term_id", termId),
   ]);
-  const expectedByCategory = {}; (structure||[]).forEach(s => expectedByCategory[s.category] = s.expected_amount);
+  const expectedByClass = {}; (structure||[]).forEach(s => expectedByClass[s.class_id] = s.expected_amount);
   const payMap = {}; (payments||[]).forEach(p => payMap[p.student_id] = p);
 
   // Students with no class assigned have no determinable expected
@@ -403,7 +425,7 @@ async function loadFeesOverview() {
 
   let totalCollected = 0, totalOutstandingAmount = 0, paidCount = 0, unpaidCount = 0;
   classedStudents.forEach(stu => {
-    const expected = expectedByCategory[stu.classes?.category] || 0;
+    const expected = expectedByClass[stu.class_id] || 0;
     const pay = payMap[stu.id];
     const paidAmt = pay?.amount_paid || 0;
     const isPaid = pay?.is_paid_override === true ? true : pay?.is_paid_override === false ? false : paidAmt >= expected;
@@ -430,7 +452,7 @@ async function loadFeesGrid() {
   if (!classId) { grid.innerHTML = ""; return; }
   grid.innerHTML = "Loading…";
   const cls = state.classes.find(c => c.id === classId);
-  const { data: fs } = await sb.from("fee_structure").select("expected_amount").eq("category", cls.category).single();
+  const { data: fs } = await sb.from("fee_structure").select("expected_amount").eq("class_id", classId).maybeSingle();
   const [{ data: students }, { data: payments }] = await Promise.all([
     sb.from("students").select("id, full_name").eq("class_id", classId).eq("is_active", true).order("full_name"),
     sb.from("fee_payments").select("*").eq("class_id", classId).eq("term_id", termId),

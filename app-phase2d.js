@@ -113,7 +113,7 @@ async function runImport(kind) {
         admission_no: r.admission_no, full_name: r.full_name, class_id: cls ? cls.id : null,
         gender: r.gender || null, date_of_birth: r.date_of_birth || null,
         guardian_name: r.guardian_name || null, guardian_phone: r.guardian_phone || null,
-      }).select().single();
+      }).select("id, admission_no").single();
       if (error) { failed++; errors.push(`${r.admission_no}: ${error.message}`); continue; }
       // Always provision a real login account, using the row's own
       // password column if given, otherwise the current school
@@ -131,7 +131,7 @@ async function runImport(kind) {
       const { data: staffRow, error } = await sb.from("staff").insert({
         staff_code: r.staff_code, full_name: r.full_name, phone: r.phone || null, email: r.email || null,
         positions, is_admin: positions.includes("Admin"), password_hash: hash,
-      }).select().single();
+      }).select("id, staff_code").single();
       if (error) { failed++; errors.push(`${r.staff_code}: ${error.message}`); continue; }
       await provisionAuthAccount("staff", staffRow.id, staffRow.staff_code, r.password);
       success++;

@@ -214,15 +214,27 @@ async function deactivateStaff(id) {
 // Calls the provision-user Edge Function so a real Supabase Auth
 // account exists for this staff/student login.
 async function provisionAuthAccount(kind, table_id, login_id, password) {
-  const { data: { session } } = await sb.auth.getSession();
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/provision-user`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session.access_token}` },
-    body: JSON.stringify({ kind, table_id, login_id, password }),
-  });
-  const json = await res.json();
-  if (!res.ok) { alert("Account login setup failed: " + (json.error || res.statusText)); }
+  const json = await provisionAuthAccountSilent(kind, table_id, login_id, password);
+  if (json.error) { alert("Account login setup failed: " + json.error); }
   return json;
+}
+// Same call, but never alert()s — used inside loops (bulk import,
+// bulk credential reset) where a per-row popup would block the loop
+// and hide the overall summary. Callers must check `.error` themselves.
+async function provisionAuthAccountSilent(kind, table_id, login_id, password) {
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/provision-user`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session.access_token}` },
+      body: JSON.stringify({ kind, table_id, login_id, password }),
+    });
+    const json = await res.json();
+    if (!res.ok) return { error: json.error || res.statusText };
+    return json;
+  } catch (e) {
+    return { error: e.message || String(e) };
+  }
 }
 
 // ============================================================

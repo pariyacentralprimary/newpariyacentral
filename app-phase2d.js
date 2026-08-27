@@ -118,9 +118,15 @@ async function runImport(kind) {
       // Always provision a real login account, using the row's own
       // password column if given, otherwise the current school
       // default — without this, imported students silently have no
-      // way to sign in at all.
+      // way to sign in at all. Caught explicitly so a provisioning
+      // failure is reported per-row instead of aborting the loop.
       const effectivePassword = r.password || state.schoolSettings.student_default_password || "student123";
-      await provisionAuthAccount("student", newStudent.id, newStudent.admission_no, effectivePassword);
+      try {
+        const prov = await provisionAuthAccountSilent("student", newStudent.id, newStudent.admission_no, effectivePassword);
+        if (prov.error) { errors.push(`${r.admission_no}: saved, but login setup failed — ${prov.error}`); }
+      } catch (e) {
+        errors.push(`${r.admission_no}: saved, but login setup failed — ${e.message || e}`);
+      }
       success++;
     }
   } else {
@@ -133,7 +139,12 @@ async function runImport(kind) {
         positions, is_admin: positions.includes("Admin"), password_hash: hash,
       }).select("id, staff_code").single();
       if (error) { failed++; errors.push(`${r.staff_code}: ${error.message}`); continue; }
-      await provisionAuthAccount("staff", staffRow.id, staffRow.staff_code, r.password);
+      try {
+        const prov = await provisionAuthAccountSilent("staff", staffRow.id, staffRow.staff_code, r.password);
+        if (prov.error) { errors.push(`${r.staff_code}: saved, but login setup failed — ${prov.error}`); }
+      } catch (e) {
+        errors.push(`${r.staff_code}: saved, but login setup failed — ${e.message || e}`);
+      }
       success++;
     }
   }

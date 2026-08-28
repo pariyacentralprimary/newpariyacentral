@@ -471,29 +471,34 @@ async function loadFeesGrid() {
   grid.innerHTML = "Loading…";
   const cls = state.classes.find(c => c.id === classId);
   const { data: fs } = await sb.from("fee_structure").select("expected_amount").eq("class_id", classId).maybeSingle();
+  const expected = fs?.expected_amount ?? 0;
   const [{ data: students }, { data: payments }] = await Promise.all([
     sb.from("students").select("id, full_name").eq("class_id", classId).eq("is_active", true).order("full_name"),
     sb.from("fee_payments").select("*").eq("class_id", classId).eq("term_id", termId),
   ]);
   const payMap = {}; (payments||[]).forEach(p => payMap[p.student_id] = p);
-  grid.innerHTML = `<p style="color:var(--dash-muted);">Expected: ₦${fs?.expected_amount ?? "—"} per student</p>
-    <div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Student</th><th>Amount Paid (₦)</th><th>Status Override</th><th></th></tr></thead>
-    <tbody>${(students||[]).map(s => { const p = payMap[s.id] || {};
+  grid.innerHTML = `<p style="color:var(--dash-muted);">Expected: ₦${expected} per student — tick "Fully Paid" to mark a student paid in full without typing the exact amount, or enter a partial amount below.</p>
+    <div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Student</th><th>Fully Paid</th><th>Amount Paid (₦)</th><th></th></tr></thead>
+    <tbody>${(students||[]).map(s => { const p = payMap[s.id] || {}; const isFullyPaid = p.is_paid_override === true;
       return `<tr>
         <td class="name-cell">${s.full_name}</td>
-        <td><input type="number" id="fp_amt_${s.id}" value="${p.amount_paid||0}" style="width:90px;"/></td>
-        <td><select id="fp_ovr_${s.id}">
-          <option value="" ${p.is_paid_override===null||p.is_paid_override===undefined?"selected":""}>Auto</option>
-          <option value="true" ${p.is_paid_override===true?"selected":""}>Force Paid</option>
-          <option value="false" ${p.is_paid_override===false?"selected":""}>Force Unpaid</option>
-        </select></td>
+        <td style="text-align:center;">
+          <input type="checkbox" id="fp_full_${s.id}" ${isFullyPaid?"checked":""} style="width:20px;height:20px;cursor:pointer;"
+            onchange="toggleFullyPaid('${s.id}', this.checked, ${expected})"/>
+        </td>
+        <td><input type="number" id="fp_amt_${s.id}" value="${p.amount_paid||0}" style="width:90px;" ${isFullyPaid?"disabled":""}/></td>
         <td><button class="btn btn-green" onclick="saveFeeRow('${s.id}','${classId}','${termId}')">Save</button></td>
       </tr>`;}).join("")}</tbody></table></div>`;
 }
+function toggleFullyPaid(studentId, checked, expectedAmount) {
+  const amtInput = document.getElementById(`fp_amt_${studentId}`);
+  if (checked) { amtInput.value = expectedAmount; amtInput.disabled = true; }
+  else { amtInput.disabled = false; }
+}
 async function saveFeeRow(studentId, classId, termId) {
+  const isFullyPaid = document.getElementById(`fp_full_${studentId}`).checked;
   const amount_paid = Number(document.getElementById(`fp_amt_${studentId}`).value) || 0;
-  const ovrRaw = document.getElementById(`fp_ovr_${studentId}`).value;
-  const is_paid_override = ovrRaw === "" ? null : ovrRaw === "true";
+  const is_paid_override = isFullyPaid ? true : null;
   const { error } = await sb.from("fee_payments").upsert({
     student_id: studentId, class_id: classId, term_id: termId, amount_paid, is_paid_override,
     updated_by: state.staff ? state.staff.id : null,
@@ -521,7 +526,7 @@ async function renderSettings() {
         <input id="setSchoolLogo" value="${s.school_logo_url||""}" placeholder="https://i.postimg.cc/..."/>
         ${s.school_logo_url ? `<img src="${s.school_logo_url}" style="height:50px;margin-top:6px;border-radius:6px;" onerror="this.style.display='none'"/>` : ""}
       </div>
-      <div class="field"><label>Jibwis / Secondary Logo — paste direct image link</label>
+      <div class="field"><label>Coat of Arms Logo — paste direct image link</label>
         <input id="setSecondaryLogo" value="${s.secondary_logo_url||""}" placeholder="https://i.postimg.cc/..."/>
         ${s.secondary_logo_url ? `<img src="${s.secondary_logo_url}" style="height:50px;margin-top:6px;border-radius:6px;" onerror="this.style.display='none'"/>` : ""}
       </div>

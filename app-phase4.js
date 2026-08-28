@@ -1,6 +1,7 @@
 // ============================================================
-// SALARY TRACKER — uses staff.salary_status jsonb (keyed by term
-// id -> 'Paid'/'Unpaid'), admin-only write, any staff can read own.
+// SALARY TRACKER — uses staff.salary_status jsonb, keyed
+// "<termId>_1"/"_2"/"_3" (one tickbox per month of that term),
+// admin-only write, any staff can read own.
 // ============================================================
 async function renderSalaryTracker() {
   const el = document.getElementById("panel-salaryTracker");
@@ -19,35 +20,42 @@ async function loadSalaryTracker() {
   const term = state.terms.find(t => t.id === termId);
 
   const rows = (staff || []).map(s => {
-    const status = (s.salary_status || {})[termId] || null;
-    const badge = status === "Paid"
-      ? `<span class="tag" style="background:rgba(34,197,94,.15);color:#22c55e;">✔ Paid</span>`
-      : status === "Unpaid"
+    // salary_status is keyed "<termId>_1" / "_2" / "_3" (Month 1-3 of
+    // that term) — each a boolean, ticked independently. A month that
+    // isn't paid simply stays unticked; nothing forces all-or-nothing.
+    const months = [1,2,3].map(m => (s.salary_status || {})[`${termId}_${m}`] === true);
+    const monthCells = months.map((paid, i) => `
+      <td style="text-align:center;">
+        <input type="checkbox" ${paid?"checked":""} onchange="setSalaryMonth('${s.id}','${termId}',${i+1},this.checked)" style="width:18px;height:18px;cursor:pointer;"/>
+      </td>`).join("");
+    const allPaid = months.every(Boolean);
+    const nonePaid = months.every(v => !v);
+    const badge = allPaid
+      ? `<span class="tag" style="background:rgba(34,197,94,.15);color:#22c55e;">✔ Fully Paid</span>`
+      : nonePaid
       ? `<span class="tag" style="background:rgba(239,68,68,.15);color:#ef4444;">✘ Unpaid</span>`
-      : `<span style="color:var(--dash-muted);">—</span>`;
+      : `<span class="tag" style="background:rgba(201,151,63,.15);color:#C9973F;">◐ Partial</span>`;
     return `<tr>
       <td class="name-cell">${s.full_name}</td>
       <td>${s.staff_code}</td>
       <td>${(s.positions||[]).join(", ")}</td>
+      ${monthCells}
       <td>${badge}</td>
-      <td>
-        <button class="btn btn-green no-print" style="font-size:11px;padding:5px 9px;" onclick="setSalaryStatus('${s.id}','${termId}','Paid')">Mark Paid</button>
-        <button class="btn btn-danger no-print" style="font-size:11px;padding:5px 9px;" onclick="setSalaryStatus('${s.id}','${termId}','Unpaid')">Mark Unpaid</button>
-      </td>
     </tr>`;
   }).join("");
 
-  body.innerHTML = `<div style="overflow-x:auto;"><table class="data-table" id="salaryTable">
-    <thead><tr><th>Name</th><th>Staff ID</th><th>Position(s)</th><th>Status</th><th></th></tr></thead>
+  body.innerHTML = `<p style="color:var(--dash-muted);font-size:12px;">Tick each month of ${term?.name || "the term"} as it's paid. A month left unticked shows as not yet paid — months don't have to be paid in order.</p>
+    <div style="overflow-x:auto;"><table class="data-table" id="salaryTable">
+    <thead><tr><th>Name</th><th>Staff ID</th><th>Position(s)</th><th>Month 1</th><th>Month 2</th><th>Month 3</th><th>Status</th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
 
   document.getElementById("salExportHost").innerHTML = `
     <button class="btn" onclick="downloadBrandedPdf('Staff Salary Status','${(term?.name||"").replace(/'/g,"")} — ${(state.schoolSettings.current_session||"").replace(/'/g,"")}',document.getElementById('salaryTable').outerHTML,'Salary_Status_${(term?.name||"").replace(/\\s/g,"_")}.pdf')"><i class="fa-solid fa-file-pdf"></i> Download PDF</button>
     <button class="btn" onclick="downloadBrandedWord('Staff Salary Status','${(term?.name||"").replace(/'/g,"")} — ${(state.schoolSettings.current_session||"").replace(/'/g,"")}',document.getElementById('salaryTable').outerHTML,'Salary_Status_${(term?.name||"").replace(/\\s/g,"_")}.doc')"><i class="fa-solid fa-file-word"></i> Download Word</button>`;
 }
-async function setSalaryStatus(staffId, termId, status) {
+async function setSalaryMonth(staffId, termId, monthIndex, paid) {
   const { data: current } = await sb.from("staff").select("salary_status").eq("id", staffId).single();
-  const updated = { ...(current?.salary_status || {}), [termId]: status };
+  const updated = { ...(current?.salary_status || {}), [`${termId}_${monthIndex}`]: paid };
   const { error } = await sb.from("staff").update({ salary_status: updated }).eq("id", staffId);
   if (error) { alert(error.message); return; }
   loadSalaryTracker();

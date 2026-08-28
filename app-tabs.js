@@ -214,13 +214,13 @@ async function loadClassScoreGrid() {
         const period = periodOf[c];
         const editable = cellEditable(subj.id, period, stu.id);
         const val = rec[c] === null || rec[c] === undefined ? "" : rec[c];
-        html += `<td><input type="number" min="0" max="${isNurseryPrimary?20:10}" value="${val}" placeholder="—"
+        html += `<td><input type="number" min="0" max="15" value="${val}" placeholder="—"
           data-stu="${stu.id}" data-subj="${subj.id}" data-field="${c}" onchange="markDirty(this)"
           ${editable ? "" : "disabled"} style="${editable ? "" : "opacity:.45;"}"/></td>`;
       });
       const examEditable = cellEditable(subj.id, "exam", stu.id);
       const examVal = rec.exam_score === null || rec.exam_score === undefined ? "" : rec.exam_score;
-      html += `<td><input type="number" min="0" max="${isNurseryPrimary?60:70}" value="${examVal}" placeholder="—"
+      html += `<td><input type="number" min="0" max="70" value="${examVal}" placeholder="—"
         data-stu="${stu.id}" data-subj="${subj.id}" data-field="exam_score" onchange="markDirty(this)"
         ${examEditable ? "" : "disabled"} style="${examEditable ? "" : "opacity:.45;"}"/></td>`;
       const total = (rec.ca1||0) + (rec.ca2||0) + (isNurseryPrimary?0:(rec.ca3||0)) + (rec.exam_score||0);
@@ -579,9 +579,9 @@ async function buildReportCardHtml(studentId, termId, shared = null) {
         <thead>
           <tr>
             <th>No</th><th style="text-align:left">Subject</th>
-            <th>1st CA (${isNurseryPrimary?20:10})</th><th>2nd CA (${isNurseryPrimary?20:10})</th>
+            <th>1st CA (15)</th><th>2nd CA (15)</th>
             ${s3Head}
-            <th>Exam (${isNurseryPrimary?60:70})</th><th>Total</th><th>Grade</th><th>Position</th><th>Remark</th>
+            <th>Exam (70)</th><th>Total</th><th>Grade</th><th>Position</th><th>Remark</th>
           </tr>
         </thead>
         <tbody>${subjRows}</tbody>

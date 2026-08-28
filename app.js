@@ -149,11 +149,17 @@ async function bootAfterLogin() {
   state.allRoles = r.all_roles && r.all_roles.length ? r.all_roles : [r.role];
 
   if (r.staff_id) {
-    const { data: staffRow } = await sb.from("staff").select("*").eq("id", r.staff_id).single();
+    const { data: staffRow, error } = await sb.from("staff")
+      .select("id, staff_code, full_name, phone, email, positions, is_admin, signature_url, salary_status, is_active, created_at, updated_at")
+      .eq("id", r.staff_id).single();
+    if (error) console.error("Failed to load staff profile:", error.message);
     state.staff = staffRow;
   }
   if (r.student_id) {
-    const { data: studentRow } = await sb.from("students").select("*, classes(name,category)").eq("id", r.student_id).single();
+    const { data: studentRow, error } = await sb.from("students")
+      .select("id, admission_no, full_name, class_id, gender, date_of_birth, guardian_name, guardian_phone, is_active, registered_by, created_at, updated_at, classes(name,category)")
+      .eq("id", r.student_id).single();
+    if (error) console.error("Failed to load student profile:", error.message);
     state.student = studentRow;
   }
 

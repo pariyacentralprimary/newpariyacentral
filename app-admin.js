@@ -143,7 +143,10 @@ async function callBulkCredentialReset(payload) {
   return json;
 }
 async function loadStaffList() {
-  const { data: staff } = await sb.from("staff").select("*").order("full_name");
+  const { data: staff, error } = await sb.from("staff")
+    .select("id, staff_code, full_name, phone, email, positions, is_admin, signature_url, salary_status, is_active, created_at, updated_at")
+    .order("full_name");
+  if (error) { document.getElementById("staffList").innerHTML = `<p style="color:var(--dash-danger);">Failed to load staff: ${error.message}</p>`; return; }
   document.getElementById("staffList").innerHTML = `<div class="card-grid">${(staff||[]).map(s => `
     <div class="class-card" style="cursor:default;">
       <div class="cc-name">${s.full_name}</div>
@@ -285,9 +288,12 @@ async function bulkResetStudentPasswords() {
 }
 async function loadStudentsList() {
   const classId = document.getElementById("stuFilterClass")?.value;
-  let q = sb.from("students").select("*, classes(name)").order("full_name");
+  let q = sb.from("students")
+    .select("id, admission_no, full_name, class_id, gender, date_of_birth, guardian_name, guardian_phone, is_active, registered_by, created_at, updated_at, classes(name)")
+    .order("full_name");
   if (classId) q = q.eq("class_id", classId);
-  const { data: students } = await q;
+  const { data: students, error } = await q;
+  if (error) { document.getElementById("studentsList").innerHTML = `<p style="color:var(--dash-danger);">Failed to load students: ${error.message}</p>`; return; }
   document.getElementById("studentsList").innerHTML = `<div class="card-grid">${(students||[]).map(s => `
     <div class="class-card" style="cursor:default;">
       <div class="cc-name">${s.full_name}</div>
@@ -616,7 +622,7 @@ async function loadAdmSchemeInfo() {
   const next = s.student_admission_next_number || 1;
   const lastIssued = next > 1 ? prefix + String(next - 1).padStart(4, "0") : "none yet";
   const nextNumber = prefix + String(next).padStart(4, "0");
-  const { count } = await sb.from("students").select("*", { count: "exact", head: true }).eq("is_active", true);
+  const { count } = await sb.from("students").select("id", { count: "exact", head: true }).eq("is_active", true);
   document.getElementById("admSchemeInfo").innerHTML =
     `Last number issued by this scheme: <strong>${lastIssued}</strong> · Next will be: <strong>${nextNumber}</strong> · Total active students in school: <strong>${count ?? "—"}</strong>`;
 }

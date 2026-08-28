@@ -20,8 +20,7 @@ const NAV_BY_ROLE = {
   bursar: [["fees","fa-money-bill","Fees"], ["settings","fa-gear","My Profile"]],
   teacher: [["dashboard","fa-gauge","Dashboard"], ["classes","fa-chalkboard","My Classes"], ["masterlist","fa-list","Master List"], ["settings","fa-gear","My Profile"]],
   student: [["myReport","fa-file-lines","My Report Card"], ["settings","fa-gear","My Profile"]],
-  registrar_primary: [["registerStudent","fa-user-plus","Register Student"], ["masterlist","fa-list","Master List"], ["settings","fa-gear","My Profile"]],
-  registrar_secondary: [["registerStudent","fa-user-plus","Register Student"], ["masterlist","fa-list","Master List"], ["settings","fa-gear","My Profile"]],
+  registrar: [["registerStudent","fa-user-plus","Register Student"], ["masterlist","fa-list","Master List"], ["settings","fa-gear","My Profile"]],
 };
 const TAB_TITLES = { dashboard:"Dashboard", classes:"Classes & Scores", masterlist:"Master List", assignments:"Curriculum & Assignments",
   staffDirectory:"Staff Directory", students:"Students", timetable:"Timetable", certificates:"Certificates & Awards",
@@ -45,8 +44,7 @@ function buildSidebar() {
   document.getElementById("sidebarNav").innerHTML = nav.map(([id,icon,label]) =>
     `<button class="sidebar-item" data-tab="${id}" onclick="switchTab('${id}')"><span class="si-icon"><i class="fa-solid ${icon}"></i></span>${label}</button>`
   ).join("");
-  const roleLabels = { registrar_primary: "Registrar (Primary/Nursery)", registrar_secondary: "Registrar (JSS/SS)" };
-  const displayLabel = r => roleLabels[r] || (r.charAt(0).toUpperCase() + r.slice(1));
+  const displayLabel = r => r.charAt(0).toUpperCase() + r.slice(1);
   const roleText = (state.allRoles && state.allRoles.length > 1)
     ? state.allRoles.map(displayLabel).join(" + ")
     : displayLabel(state.role);
@@ -77,8 +75,8 @@ function switchTab(id) {
 async function renderDashboard() {
   const el = document.getElementById("panel-dashboard");
   el.innerHTML = `<div class="card-grid" id="dashStats"></div>`;
-  const { count: studentCount } = await sb.from("students").select("*", { count: "exact", head: true }).eq("is_active", true);
-  const { count: staffCount } = await sb.from("staff").select("*", { count: "exact", head: true }).eq("is_active", true);
+  const { count: studentCount } = await sb.from("students").select("id", { count: "exact", head: true }).eq("is_active", true);
+  const { count: staffCount } = await sb.from("staff").select("id", { count: "exact", head: true }).eq("is_active", true);
   document.getElementById("dashStats").innerHTML = `
     ${statCard("fa-user-graduate", studentCount ?? "—", "Active Students")}
     ${statCard("fa-user-tie", staffCount ?? "—", "Active Staff")}
@@ -103,11 +101,8 @@ async function renderClasses() {
       const { data: assigns } = await sb.from("class_teacher_subjects").select("class_id").eq("staff_id", state.staff.id);
       (assigns || []).forEach(a => idSet.add(a.class_id));
     }
-    if (roles.includes("headmaster")) {
-      state.classes.filter(c => c.category === "nursery" || c.category === "primary").forEach(c => idSet.add(c.id));
-    }
-    if (roles.includes("principal")) {
-      state.classes.filter(c => c.category === "jss" || c.category === "ss").forEach(c => idSet.add(c.id));
+    if (roles.includes("headmaster") || roles.includes("principal")) {
+      state.classes.forEach(c => idSet.add(c.id));
     }
     if (idSet.size) myClasses = state.classes.filter(c => idSet.has(c.id));
   }
@@ -422,11 +417,12 @@ async function buildReportCardHtml(studentId, termId, shared = null) {
     term = shared.term;
   } else {
     const results = await Promise.all([
-      sb.from("students").select("*, classes(name,category)").eq("id", studentId).single(),
+      sb.from("students").select("id, admission_no, full_name, class_id, gender, date_of_birth, guardian_name, guardian_phone, is_active, classes(name,category)").eq("id", studentId).single(),
       sb.from("student_term_summary").select("*").eq("student_id", studentId).eq("term_id", termId).maybeSingle(),
       sb.from("student_scores").select("*, subjects(name)").eq("student_id", studentId).eq("term_id", termId),
       sb.from("terms").select("*, sessions(label)").eq("id", termId).single(),
     ]);
+    if (results[0].error) console.error("Report card: failed to load student:", results[0].error.message);
     student = results[0].data; summary = results[1].data; scores = results[2].data; term = results[3].data;
   }
   if (!student) return "<p>Student not found.</p>";
@@ -674,8 +670,6 @@ function gradeFor(avg) {
 async function renderPrintReports() {
   const el = document.getElementById("panel-printReports");
   let myClasses = state.classes;
-  if (state.role === "headmaster") myClasses = state.classes.filter(c => c.category === "nursery" || c.category === "primary");
-  else if (state.role === "principal") myClasses = state.classes.filter(c => c.category === "jss" || c.category === "ss");
   el.innerHTML = `
     <div class="settings-card">
       <div class="settings-card-title">Print All Report Cards — One Class, One Term</div>
@@ -703,7 +697,10 @@ async function loadBulkReportCards() {
   printBtn.disabled = true; printBtn.classList.remove("btn-green"); printBtn.textContent = "Print All (load first)";
   status.textContent = "Loading students…";
 
-  const { data: students } = await sb.from("students").select("*, classes(name,category)").eq("class_id", classId).eq("is_active", true).order("full_name");
+  const { data: students, error: stuErr } = await sb.from("students")
+    .select("id, admission_no, full_name, class_id, gender, date_of_birth, guardian_name, guardian_phone, classes(name,category)")
+    .eq("class_id", classId).eq("is_active", true).order("full_name");
+  if (stuErr) console.error("Bulk print: failed to load students:", stuErr.message);
   if (!students || !students.length) { status.textContent = "No active students in this class."; return; }
 
   // Fetch everything the WHOLE class needs in a handful of queries,
@@ -820,14 +817,8 @@ async function assignUnassignedStudent(studentId) {
 }
 async function renderRegisterStudent() {
   const el = document.getElementById("panel-registerStudent");
-  const roles = state.allRoles || [state.role];
-  let allowedCategories = [];
-  if (roles.includes("admin")) allowedCategories = ["nursery","primary","jss","ss"];
-  else {
-    if (roles.includes("registrar_primary")) allowedCategories.push("nursery","primary");
-    if (roles.includes("registrar_secondary")) allowedCategories.push("jss","ss");
-  }
-  const myClasses = state.classes.filter(c => allowedCategories.includes(c.category));
+  // Primary-only school — admin and registrar both see every class.
+  const myClasses = state.classes;
   const s = state.schoolSettings;
   const prefix = s.student_admission_prefix || "SU";
   const next = s.student_admission_next_number || 1;
@@ -912,7 +903,7 @@ async function loadMyReport(termId) {
   const { data: summary } = await sb.from("student_term_summary").select("fees_status").eq("student_id", state.student.id).eq("term_id", termId).maybeSingle();
   if (!summary || summary.fees_status !== "paid") {
     const { data: fp } = await sb.from("fee_payments").select("amount_paid").eq("student_id", state.student.id).eq("term_id", termId).maybeSingle();
-    const { data: fs } = await sb.from("fee_structure").select("expected_amount").eq("category", state.student.classes.category).maybeSingle();
+    const { data: fs } = await sb.from("fee_structure").select("expected_amount").eq("class_id", state.student.class_id).maybeSingle();
     host.innerHTML = `<div class="settings-card">
       <h3 style="color:var(--dash-danger);">Fees Not Paid</h3>
       <p>Your report card for this term is locked until your school fees are settled.</p>

@@ -318,7 +318,7 @@ function buildTestimonialCertHTML(opts) {
 }
 
 // ---------- Best Student generator ----------
-const CATEGORY_TO_SECTION = { nursery: "Nursery", primary: "Primary", jss: "Junior Secondary", ss: "Senior Secondary" };
+const CATEGORY_TO_SECTION = { primary: "Primary" };
 async function generateBestStudentCertificates() {
   const preview = document.getElementById("best-student-certs-preview");
   preview.innerHTML = `<p style="color:var(--dash-muted);font-size:12px;">⏳ Loading best students…</p>`;
@@ -342,7 +342,7 @@ async function generateBestStudentCertificates() {
     }
   });
 
-  const sections = ["Nursery", "Primary", "Junior Secondary", "Senior Secondary"];
+  const sections = ["Primary"];
   preview.innerHTML = "";
   for (let i = 0; i < sections.length; i++) {
     const sec = sections[i];
@@ -410,8 +410,8 @@ async function generateTestimonialCertificates() {
   let idCounter = 0;
   let html = "";
   for (const cls of gradClasses) {
-    const isSecondary = cls.category === "jss" || cls.category === "ss";
-    const spanYears = cls.category === "primary" ? 5 : 3;
+    const isSecondary = false;
+    const spanYears = 6;
     const auth = await getCertAuthority(isSecondary);
     const signLabel = isSecondary ? "PRINCIPAL'S SIGN" : "HEADTEACHER'S SIGN";
     const { fromYear, toYear, dateShort } = computeTestimonialDates(spanYears);
@@ -560,7 +560,7 @@ async function loadCaTracker() {
   const rowsHtml = [];
   for (const cls of state.classes) {
     const [{ count: studentCount }, { data: classSubjects }] = await Promise.all([
-      sb.from("students").select("*", { count: "exact", head: true }).eq("class_id", cls.id).eq("is_active", true),
+      sb.from("students").select("id", { count: "exact", head: true }).eq("class_id", cls.id).eq("is_active", true),
       sb.from("class_subjects").select("subject_id").eq("class_id", cls.id),
     ]);
     const subjectCount = (classSubjects||[]).length;

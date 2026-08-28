@@ -519,6 +519,8 @@ async function renderSettings() {
       <div class="field"><label>School Name</label><input id="setSchoolName" value="${s.school_name||""}"/></div>
       <div class="field"><label>Motto</label><input id="setMotto" value="${s.motto||""}"/></div>
       <div class="field"><label>Address</label><input id="setAddress" value="${s.address||""}"/></div>
+      <div class="field"><label>School Email — shown on report cards, optional</label><input id="setEmail" type="email" value="${s.email||""}" placeholder="info@school.edu.ng"/></div>
+      <div class="field"><label>School Phone — shown on report cards, optional</label><input id="setPhone" value="${s.phone||""}" placeholder="080..."/></div>
       <div class="field"><label>Current Session</label><input id="setSession" value="${s.current_session||""}"/></div>
       <div class="field"><label>Primary Website</label><input id="setPrimaryWebsite" value="${s.primary_website||""}" placeholder="https://..."/></div>
       <div class="field"><label>Secondary Website</label><input id="setSecondaryWebsite" value="${s.secondary_website||""}" placeholder="https://..."/></div>
@@ -684,6 +686,8 @@ async function saveSchoolSettings() {
     school_name: document.getElementById("setSchoolName").value,
     motto: document.getElementById("setMotto").value,
     address: document.getElementById("setAddress").value,
+    email: document.getElementById("setEmail").value,
+    phone: document.getElementById("setPhone").value,
     current_session: document.getElementById("setSession").value,
     primary_website: document.getElementById("setPrimaryWebsite").value,
     secondary_website: document.getElementById("setSecondaryWebsite").value,

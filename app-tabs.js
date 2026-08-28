@@ -428,7 +428,6 @@ async function buildReportCardHtml(studentId, termId, shared = null) {
   if (!student) return "<p>Student not found.</p>";
   const isNurseryPrimary = student.classes.category === "nursery" || student.classes.category === "primary";
   const settings = state.schoolSettings;
-  const catClass = getCardCategoryClass(student.classes.category);
 
   const totalInClass = shared?.classSize ?? (await sb.rpc("get_class_size", { p_class_id: student.class_id })).data;
 
@@ -486,19 +485,23 @@ async function buildReportCardHtml(studentId, termId, shared = null) {
   const gr = gradeFor(avg);
   const s3Head = isNurseryPrimary ? "" : `<th>3rd CA (10)</th>`;
   const termLower = (term?.name || "").toLowerCase();
+  const isFirstTerm = termLower.includes("first");
+  const isSecondTerm = termLower.includes("second");
   const isThirdTerm = termLower.includes("third");
+  const posLabelTop = summary?.class_position_label || "—";
 
-  const gradingHtml = `
-    <table>
-      <thead><tr><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th></tr></thead>
-      <tbody><tr><td>70-100</td><td>60-69</td><td>50-59</td><td>45-49</td><td>40-44</td><td>0-39</td></tr></tbody>
-    </table>`;
+  // The summary strip is ALWAYS shown (title switches to "Annual
+  // Summary" only on Third Term) — 1st/2nd/3rd Avg columns fill in
+  // as terms pass, each showing "—" until that term's own average
+  // exists. This mirrors the current term's own total/average/grade/
+  // position already shown at the top of the info box — this strip
+  // is purely the historical/annual roll-up, so nothing duplicates.
+  let firstAvg = null, secondAvg = null, thirdAvg = null;
+  if (isFirstTerm) firstAvg = avg;
+  else if (isSecondTerm) secondAvg = avg;
+  else thirdAvg = avg;
 
-  let lowerLeftHtml = `<div class="grading-box">${gradingHtml}</div>`;
-  let remarkText = gr.remark;
-  const summaryTitle = isThirdTerm ? "Third Term Summary" : "Term Summary";
-
-  if (isThirdTerm && summary?.annual_average != null) {
+  if (!isFirstTerm) {
     let firstSummary, secondSummary;
     if (shared?.siblingSummaries) {
       firstSummary = shared.siblingSummaries.first?.[studentId];
@@ -510,118 +513,122 @@ async function buildReportCardHtml(studentId, termId, shared = null) {
       const secondTermId = siblingTerms?.find(t => t.name === "Second Term")?.id;
       const [{ data: fs }, { data: ss }] = await Promise.all([
         firstTermId ? sb.from("student_term_summary").select("average").eq("student_id", studentId).eq("term_id", firstTermId).maybeSingle() : { data: null },
-        secondTermId ? sb.from("student_term_summary").select("average").eq("student_id", studentId).eq("term_id", secondTermId).maybeSingle() : { data: null },
+        secondTermId && isThirdTerm ? sb.from("student_term_summary").select("average").eq("student_id", studentId).eq("term_id", secondTermId).maybeSingle() : { data: null },
       ]);
       firstSummary = fs; secondSummary = ss;
     }
-    const fmtAvg = v => (v === null || v === undefined ? "—" : v + "%");
-    const annualGrade = gradeFor(summary.annual_average).grade;
-    lowerLeftHtml = `
-      <div class="annual-summary-box">
-        <div class="ann-title">★ Annual Summary ★</div>
-        <table>
-          <thead><tr><th>1st Avg</th><th>2nd Avg</th><th>3rd Avg</th><th>Ann. Avg</th><th>Grade</th><th>Pos</th></tr></thead>
-          <tbody><tr>
-            <td>${fmtAvg(firstSummary?.average)}</td>
-            <td>${fmtAvg(secondSummary?.average)}</td>
-            <td>${avg}%</td>
-            <td><strong>${summary.annual_average}%</strong></td>
-            <td><strong>${annualGrade}</strong></td>
-            <td>${summary.annual_position_label || "—"}</td>
-          </tr></tbody>
-        </table>
-      </div>`;
-    remarkText = getAnnualRemark(annualGrade);
+    firstAvg = firstSummary?.average ?? null;
+    if (isThirdTerm) secondAvg = secondSummary?.average ?? null;
   }
 
-  return `<div class="card ${catClass}" id="rc-card-${studentId}">
-    <div class="card-top">
+  const fmtAvg = v => (v === null || v === undefined ? "—" : v + "%");
+  const summaryTitle = isThirdTerm ? "★ Annual Summary ★" : "★ Term Summary ★";
+  const haveAnnual = isThirdTerm && summary?.annual_average != null;
+  const annualGrade = haveAnnual ? gradeFor(summary.annual_average).grade : null;
+
+  const annualSummaryHtml = `
+    <div class="annual-summary-box">
+      <div class="ann-title">${summaryTitle}</div>
+      <table>
+        <thead><tr><th>1st Avg</th><th>2nd Avg</th><th>3rd Avg</th><th>Ann. Avg</th><th>Grade</th><th>Pos</th></tr></thead>
+        <tbody><tr>
+          <td>${fmtAvg(firstAvg)}</td>
+          <td>${fmtAvg(secondAvg)}</td>
+          <td>${fmtAvg(thirdAvg)}</td>
+          <td><strong>${haveAnnual ? summary.annual_average + "%" : "—"}</strong></td>
+          <td><strong>${haveAnnual ? annualGrade : "—"}</strong></td>
+          <td>${haveAnnual ? (summary.annual_position_label || "—") : "—"}</td>
+        </tr></tbody>
+      </table>
+    </div>`;
+  const remarkText = haveAnnual ? getAnnualRemark(annualGrade) : gr.remark;
+
+  const contactParts = [];
+  if (settings.email) contactParts.push(`<span>✉ ${settings.email}</span>`);
+  if (settings.phone) contactParts.push(`<span>☎ ${settings.phone}</span>`);
+  if (website) contactParts.push(`<span>Website: <a href="${website}" target="_blank" style="color:inherit;text-decoration:none;">${website}</a></span>`);
+  const contactHtml = contactParts.length ? `<div class="rc-contact">${contactParts.join("")}</div>` : "";
+  const coatOfArmsHtml = secondaryLogoHtml || `<img src="" alt="" style="opacity:0;">`;
+
+  return `<div class="card" id="rc-card-${studentId}">
+    <div class="rc-header">
       <div class="logo-container">${schoolLogoHtml}</div>
-      <div class="school-title">
-        <h2>${settings.school_name || "Pariya School"}</h2>
-        <p><strong style="color:var(--accent)">Motto:</strong> ${settings.motto || ""}</p>
-        <p class="muted"><strong style="color:var(--accent)">Address:</strong> ${settings.address || ""}</p>
-        <div class="contact-info">
-          <strong>Website:</strong> <a href="${website}" target="_blank" style="color:inherit;text-decoration:none;">${website}</a>
+      <div class="rc-title-block">
+        <h2>${settings.school_name || "Pariya Central Primary"}</h2>
+        <p class="rc-address">${settings.address || ""}</p>
+        ${contactHtml}
+        <div class="rc-motto"><span>MOTTO:</span> ${(settings.motto || "").toUpperCase()}</div>
+      </div>
+      <div class="rc-photo-box">${coatOfArmsHtml}</div>
+    </div>
+
+    <hr class="rc-divider">
+
+    <div class="rc-banner-wrap"><span class="rc-banner">${(term?.name || "").toUpperCase()} REPORT SHEET</span></div>
+
+    <div class="rc-infobox">
+      <div class="rc-info-cols">
+        <div class="rc-info-col-left">
+          <div class="rc-info-line"><span class="rc-label">Name:</span><span class="rc-value">${(student.full_name||"").toUpperCase()}</span></div>
+          <div class="rc-info-line"><span class="rc-label">Overall Total:</span><span class="rc-value">${summary?.total_marks ?? "—"}</span></div>
+          <div class="rc-info-line"><span class="rc-label">Average:</span><span class="rc-value">${avg}</span></div>
+          <div class="rc-info-line"><span class="rc-label">Grade:</span><span class="rc-value">${gr.grade}</span></div>
+          <div class="rc-info-line"><span class="rc-label">Position:</span><span class="rc-value"><span class="pos-plain" style="font-size:12px;display:inline;">${posLabelTop}</span></span></div>
+        </div>
+        <div class="rc-info-col-mid">
+          <div class="rc-info-line"><span class="rc-label">Gender:</span><span class="rc-value">${student.gender || "-"}</span></div>
+          <div class="rc-info-line"><span class="rc-label">Admission No:</span><span class="rc-value">${student.admission_no || "-"}</span></div>
+          <div class="rc-info-line"><span class="rc-label">Class:</span><span class="rc-value">${student.classes.name}</span></div>
+          <div class="rc-info-line"><span class="rc-label">No in Class:</span><span class="rc-value">${totalInClass ?? "—"}</span></div>
+          <div class="rc-info-line"><span class="rc-label">Term:</span><span class="rc-value">${term?.name || ""}</span></div>
+        </div>
+        <div class="rc-info-col-right">
+          <div class="rc-info-line"><span class="rc-label">Session:</span><span class="rc-value">${term?.sessions?.label || settings.current_session || ""}</span></div>
+          <div class="rc-info-line"><span class="rc-label">Date of Birth:</span><span class="rc-value">${formatDobWithAge(student.date_of_birth)}</span></div>
+          <div class="rc-info-line"><span class="rc-label">Closing Date:</span><span class="rc-value">${term?.closing_date || "—"}</span></div>
+          <div class="rc-info-line"><span class="rc-label">Resumption Date:</span><span class="rc-value">${term?.resumption_date || "—"}</span></div>
+          <div class="rc-info-line"><span class="rc-label">Holiday Duration:</span><span class="rc-value">${calcHolidaysDuration(term?.resumption_date, term?.closing_date)}</span></div>
         </div>
       </div>
-      <div class="logo-container">${secondaryLogoHtml}</div>
     </div>
 
-    <hr class="info-separator">
-
-    <div class="student-header">
-      <span class="name-block"><strong>Student:</strong> ${student.full_name}</span>
-      <span class="report-term">${(term?.name || "").toUpperCase()} REPORT CARD</span>
-      <span class="session-info">Session: ${term?.sessions?.label || settings.current_session || ""}</span>
-    </div>
-
-    <table class="info-table">
-      <tr>
-        <td><strong>Admission:</strong> <span class="data">${student.admission_no || "-"}</span></td>
-        <td><strong>Term:</strong> <span class="data">${term?.name || ""}</span></td>
-        <td><strong>Resumption Date:</strong> <span class="data">${term?.resumption_date || "—"}</span></td>
-      </tr>
-      <tr>
-        <td><strong>Gender:</strong> <span class="data">${student.gender || "-"}</span></td>
-        <td><strong>Total in Class:</strong> <span class="data">${totalInClass ?? "—"}</span></td>
-        <td><strong>Closing Date:</strong> <span class="data">${term?.closing_date || "—"}</span></td>
-      </tr>
-      <tr>
-        <td><strong>Class:</strong> <span class="data">${student.classes.name}</span></td>
-        <td><strong>Date Of Birth:</strong> <span class="data">${formatDobWithAge(student.date_of_birth)}</span></td>
-        <td><strong>Holidays Duration:</strong> <span class="data">${calcHolidaysDuration(term?.resumption_date, term?.closing_date)}</span></td>
-      </tr>
-    </table>
-
+    <div class="rc-perf-banner">Student's Academic Performance (${(student.classes.category||"Primary").toUpperCase()} Category)</div>
     <div class="card-subjects">
       <table>
         <thead>
           <tr>
-            <th>No</th><th style="text-align:left">Subject</th>
+            <th>S/N</th><th style="text-align:left">Subject</th>
             <th>1st CA (15)</th><th>2nd CA (15)</th>
             ${s3Head}
-            <th>Exam (70)</th><th>Total</th><th>Grade</th><th>Position</th><th>Remark</th>
+            <th>Exam (70)</th><th>Total (100)</th><th>Grade</th><th>Subject<br>Position</th><th>Remark</th>
           </tr>
         </thead>
         <tbody>${subjRows}</tbody>
       </table>
     </div>
 
-    <div class="lower-row">
-      ${lowerLeftHtml}
-      <div class="total-summary">
-        <div class="summary-title">${summaryTitle}</div>
-        <table>
-          <thead><tr><th>Total Marks</th><th>Average</th><th>Grade</th><th>Position</th></tr></thead>
-          <tbody><tr>
-            <td>${summary?.total_marks ?? "—"}</td>
-            <td>${avg}</td>
-            <td>${gr.grade}</td>
-            <td><span class="pos-plain">${summary?.class_position_label || "—"}</span></td>
-          </tr></tbody>
-        </table>
-      </div>
-    </div>
+    ${annualSummaryHtml}
 
-    <div class="remarks"><strong>${isThirdTerm ? "Annual Remark:" : "Teacher's Remark:"}</strong> ${remarkText}</div>
-
-    <div class="bottom-row">
-      <div class="signature-block">
-        ${adminOfficerSigHtml}
-        <div class="sig-line"></div>
-        <div style="font-weight:900;text-align:center;">${adminOfficerName}</div>
-        <div class="sig-caption">Admin Officer</div>
-      </div>
-      <div class="qr-wrap" style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-        <div id="qrcode-${studentId}" class="qr-code-container"></div>
-        <div style="font-size:9px;font-weight:800;color:var(--dash-muted);margin-top:2px;">VERIFY REPORT</div>
-      </div>
-      <div class="signature-block">
-        ${authoritySigHtml}
-        <div class="sig-line"></div>
-        <div style="font-weight:900;text-align:center;">${authorityName}</div>
-        <div class="sig-caption">${wantPosition}</div>
+    <div class="rc-remarks-box">
+      <div class="rc-remark-line"><span class="rc-label">Class Teacher's Remark:</span>${remarkText}</div>
+      <div class="bottom-row">
+        <div class="signature-block">
+          ${adminOfficerSigHtml}
+          <div class="sig-line"></div>
+          <div style="font-weight:900;text-align:center;">${adminOfficerName}</div>
+          <div class="sig-caption">Admin Officer</div>
+        </div>
+        <div class="rc-mid-col">
+          <div id="qrcode-${studentId}" class="qr-code-container"></div>
+          <div class="rc-qr-caption">Scan to verify authenticity</div>
+          <div class="rc-mid-date"><span class="rc-label">Date:</span> ${new Date().toLocaleDateString()}</div>
+        </div>
+        <div class="signature-block">
+          ${authoritySigHtml}
+          <div class="sig-line"></div>
+          <div style="font-weight:900;text-align:center;">${authorityName}</div>
+          <div class="sig-caption">${wantPosition}</div>
+        </div>
       </div>
     </div>
   </div>`;

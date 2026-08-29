@@ -127,6 +127,8 @@ function shadowPasswordFor(id, plain) {
 
 async function signOut() {
   await sb.auth.signOut();
+  state.session = null;
+  history.replaceState(null, "", "/login");
   location.reload();
 }
 
@@ -135,13 +137,15 @@ async function signOut() {
 // ---------------------------------------------------------------
 async function bootAfterLogin() {
   const { data: { session } } = await sb.auth.getSession();
-  if (!session) { showAppShell(false); return; }
+  if (!session) { state.session = null; renderRoute(); return; }
   state.session = session;
 
   const { data: roleRows, error: roleErr } = await sb.rpc("current_app_role");
   if (roleErr || !roleRows || !roleRows.length || roleRows[0].role === "anonymous") {
     showLoginError("Account not recognised. Contact your admin.");
+    state.session = null;
     await sb.auth.signOut();
+    navigate("/login", { push: false });
     return;
   }
   const r = roleRows[0];
@@ -166,7 +170,7 @@ async function bootAfterLogin() {
   await loadReferenceData();
   showAppShell(true);
   buildSidebar();
-  switchTab(state.role === "student" ? "myReport" : "dashboard");
+  handlePostAuthRouting();
 }
 
 async function loadReferenceData() {
@@ -194,11 +198,18 @@ function showAppShell(show) {
   document.getElementById("appShell").style.display = show ? "block" : "none";
 }
 
-// Restore session automatically on page load (persistent login)
-(async function initSession() {
+// Restore session automatically on page load (persistent login).
+// Deferred to DOMContentLoaded rather than running immediately: all
+// <script> tags (including router.js, loaded after this file) are
+// guaranteed to have finished executing by the time DOMContentLoaded
+// fires, so renderRoute()/NAV_BY_ROLE/etc. are always defined by the
+// time this runs — calling it immediately risked a race where
+// getSession() resolves before later script tags even load.
+window.addEventListener("DOMContentLoaded", async function initSession() {
   const { data: { session } } = await sb.auth.getSession();
   if (session) await bootAfterLogin();
-})();
+  else renderRoute();
+});
 
 function toggleSidebar(open) {
   document.getElementById("sidebar").classList.toggle("open", open);

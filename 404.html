@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Pariya Central Primary — Redirecting…</title>
+  <script>
+    // GitHub Pages has no server-side rewrite rules — a direct hit
+    // or refresh on a clean route like /classes has no matching
+    // file, so GitHub serves this 404.html. This converts the
+    // requested path into a query string and redirects to the site
+    // root, where index.html's restore script (see its <head>)
+    // converts it back into a clean pushState URL before the app
+    // boots. Standard technique: https://github.com/rafgraph/spa-github-pages
+    //
+    // pathSegmentsToKeep = 0 assumes this site is served at the
+    // domain root (a *.github.io user/org page, e.g.
+    // pariyacentralprimary.github.io/classes). If this repo is ever
+    // moved to a PROJECT page instead (served at
+    // username.github.io/repo-name/classes), change this to 1 so
+    // the "/repo-name" segment is preserved.
+    var pathSegmentsToKeep = 0;
+    var l = window.location;
+    l.replace(
+      l.protocol + "//" + l.hostname + (l.port ? ":" + l.port : "") +
+      l.pathname.split("/").slice(0, 1 + pathSegmentsToKeep).join("/") + "/?/" +
+      l.pathname.slice(1).split("/").slice(pathSegmentsToKeep).join("/").replace(/&/g, "~and~") +
+      (l.search ? "&" + l.search.slice(1).replace(/&/g, "~and~") : "") +
+      l.hash
+    );
+  </script>
+</head>
+<body>
+  Redirecting…
+</body>
+</html>

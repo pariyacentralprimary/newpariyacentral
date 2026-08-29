@@ -42,7 +42,7 @@ function buildSidebar() {
     });
   });
   document.getElementById("sidebarNav").innerHTML = nav.map(([id,icon,label]) =>
-    `<button class="sidebar-item" data-tab="${id}" onclick="switchTab('${id}')"><span class="si-icon"><i class="fa-solid ${icon}"></i></span>${label}</button>`
+    `<a href="${TAB_TO_ROUTE[id] || "#"}" class="sidebar-item" data-tab="${id}" onclick="switchTab('${id}');return false;"><span class="si-icon"><i class="fa-solid ${icon}"></i></span>${label}</a>`
   ).join("");
   const displayLabel = r => r.charAt(0).toUpperCase() + r.slice(1);
   const roleText = (state.allRoles && state.allRoles.length > 1)
@@ -53,7 +53,11 @@ function buildSidebar() {
   document.getElementById("topbarGreeting").textContent = fullName ? `Welcome, ${fullName}!` : "";
 }
 
-function switchTab(id) {
+// Pure rendering — draws tab `id` into the DOM. Never touches the
+// URL/history; that's router.js's job. The public switchTab(id)
+// (defined in router.js) is what everything else in the app should
+// call — it routes through navigate() and ends up calling this.
+function renderTab(id) {
   document.querySelectorAll(".sidebar-item").forEach(b => b.classList.toggle("active", b.dataset.tab === id));
   document.getElementById("topbarTitle").textContent = TAB_TITLES[id] || id;
   toggleSidebar(false);

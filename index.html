@@ -2,22 +2,6 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<script>
-  // Restores a clean deep-link URL (e.g. /classes) that 404.html
-  // redirected through a "/?/classes" query string, BEFORE anything
-  // else on the page runs. Only fires anything on GitHub Pages —
-  // Netlify/Vercel never hit 404.html for a valid SPA route, so
-  // location.search never starts with "?/" there and this is a
-  // silent no-op. Same technique as 404.html; see its comment.
-  (function (l) {
-    if (l.search[1] === "/") {
-      var decoded = l.search.slice(1).split("&").map(function (s) {
-        return s.replace(/~and~/g, "&");
-      }).join("?");
-      window.history.replaceState(null, null, l.pathname.slice(0, -1) + decoded + l.hash);
-    }
-  }(window.location));
-</script>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Pariya Central Primary — Report Card System</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">

@@ -128,7 +128,10 @@ function shadowPasswordFor(id, plain) {
 async function signOut() {
   await sb.auth.signOut();
   state.session = null;
-  history.replaceState(null, "", "/login");
+  // Hash routes ("#/login") never depend on server config, so no
+  // special-casing needed here anymore — this always resolves
+  // correctly on any static host.
+  location.hash = "/login";
   location.reload();
 }
 

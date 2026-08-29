@@ -42,7 +42,7 @@ function buildSidebar() {
     });
   });
   document.getElementById("sidebarNav").innerHTML = nav.map(([id,icon,label]) =>
-    `<a href="${TAB_TO_ROUTE[id] || "#"}" class="sidebar-item" data-tab="${id}" onclick="switchTab('${id}');return false;"><span class="si-icon"><i class="fa-solid ${icon}"></i></span>${label}</a>`
+    `<a href="#${TAB_TO_ROUTE[id] || ""}" class="sidebar-item" data-tab="${id}" onclick="switchTab('${id}');return false;"><span class="si-icon"><i class="fa-solid ${icon}"></i></span>${label}</a>`
   ).join("");
   const displayLabel = r => r.charAt(0).toUpperCase() + r.slice(1);
   const roleText = (state.allRoles && state.allRoles.length > 1)

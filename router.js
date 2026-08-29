@@ -1,16 +1,19 @@
 // ============================================================
-// ROUTER — lightweight History-API SPA router (no framework, no
-// hash URLs). Maps every existing tab id to a clean URL and drives
-// the existing renderTab()/NAV_BY_ROLE system from location.pathname
-// instead of click-only tab switching.
+// ROUTER — lightweight hash-based SPA router (no framework, no
+// server config needed). Uses "#/classes" style URLs instead of
+// clean paths: a browser never sends anything after "#" to the
+// server, so every route always just requests "/" underneath —
+// meaning it works identically on GitHub Pages, Netlify, Vercel, a
+// zipped folder opened locally, anywhere. No 404.html trick, no
+// _redirects file, no deploy-order gotchas.
 //
 // Design: renderTab(id) in app-tabs.js does the actual DOM
 // rendering and never touches the URL. Everything else — sidebar
 // clicks, "Back to Classes" buttons, post-login redirect, browser
 // Back/Forward, direct URL entry, page refresh — goes through
-// switchTab(id) / navigate(path) below, which update the URL via
-// the History API and then call renderRoute() to resolve what
-// should actually be on screen (auth + role checked every time).
+// switchTab(id) / navigate(path) below, which update location.hash
+// and then call renderRoute() to resolve what should actually be on
+// screen (auth + role checked every time).
 // ============================================================
 
 const TAB_TO_ROUTE = {
@@ -41,6 +44,13 @@ function defaultRouteForCurrentUser() {
   return "/dashboard";
 }
 
+// Reads the current route from the URL fragment. "#/classes" -> "/classes".
+// No fragment at all (fresh visit to the bare domain) -> "/".
+function currentPath() {
+  const h = location.hash.slice(1);
+  return h || "/";
+}
+
 // Public entry point — every existing onclick="switchTab('id')" call
 // (sidebar, "Back to Classes" buttons, post-login redirect) now goes
 // through here instead of rendering directly.
@@ -49,23 +59,17 @@ function switchTab(id) {
 }
 
 function navigate(path, { push = true } = {}) {
-  if (location.pathname !== path) {
-    if (push) history.pushState({ path }, "", path);
-    else history.replaceState({ path }, "", path);
+  const newHash = "#" + path;
+  if (push) {
+    if (location.hash === newHash) renderRoute(); // no actual change -> hashchange won't fire
+    else location.hash = path; // triggers the hashchange listener below, which renders
+  } else {
+    history.replaceState(null, "", newHash);
+    renderRoute();
   }
-  renderRoute();
 }
 
-// Intercepts a plain <a href="/x"> click so it routes through the
-// SPA instead of doing a full page load (kept for any future links
-// built with a real href + this handler, e.g. cross-references).
-function handleNavClick(e, path) {
-  if (e) e.preventDefault();
-  navigate(path);
-  return false;
-}
-
-window.addEventListener("popstate", renderRoute);
+window.addEventListener("hashchange", renderRoute);
 
 function showNotFound() {
   document.getElementById("loginScreen").style.display = "none";
@@ -80,18 +84,14 @@ function goHomeFromNotFound() {
 }
 
 // The single source of truth for "what should be on screen right
-// now", driven entirely by location.pathname. Called on: initial
-// load (once auth state is known), every popstate, and every call
-// to navigate(). Idempotent and safe to call repeatedly.
+// now", driven entirely by the URL fragment. Called on: initial
+// load (once auth state is known), every hashchange (Back/Forward,
+// typing a new hash, clicking a link), and every call to navigate().
+// Idempotent and safe to call repeatedly.
 function renderRoute() {
-  const path = location.pathname;
+  const path = currentPath();
 
   if (!isLoggedIn()) {
-    // Logged out: "/" and "/login" both show the login screen.
-    // Any other KNOWN route (a protected page typed/refreshed while
-    // logged out) redirects to /login rather than flashing protected
-    // UI or leaving a blank screen. An unrecognised path gets a
-    // real 404, not a silent redirect.
     hideNotFound();
     if (path === "/" || path === "/login") {
       showAppShell(false);
@@ -103,7 +103,6 @@ function renderRoute() {
     return;
   }
 
-  // Logged in.
   if (path === "/" || path === "/login") {
     navigate(defaultRouteForCurrentUser(), { push: false });
     return;
@@ -111,10 +110,6 @@ function renderRoute() {
   const tabId = ROUTE_TO_TAB[path];
   if (!tabId) { showNotFound(); return; }
   if (!isRouteAuthorized(tabId)) {
-    // Not a security boundary — Supabase RLS is what actually
-    // protects the data (see privacy note in app.js). This just
-    // avoids rendering a sidebar-less orphan panel for a tab this
-    // person's role doesn't have.
     navigate(defaultRouteForCurrentUser(), { push: false });
     return;
   }
@@ -125,7 +120,7 @@ function renderRoute() {
 
 // Called once bootAfterLogin() has state.session/role/allRoles ready
 // — covers both a fresh login and a page refresh with a live
-// session — and resolves whatever URL the browser is actually on
+// session — and resolves whatever URL fragment is actually present
 // (a deep link survives a refresh; "/" or "/login" lands on the
 // role's default tab).
 function handlePostAuthRouting() {

@@ -6,7 +6,13 @@
 async function renderSalaryTracker() {
   const el = document.getElementById("panel-salaryTracker");
   el.innerHTML = `
-    <div class="field"><label>Term</label><select id="salTermSelect" onchange="loadSalaryTracker()">
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Salary Tracker</h1>
+        <p>Tick each month of the term as it's paid — status updates automatically per staff member.</p>
+      </div>
+    </div>
+    <div class="field" style="max-width:280px;"><label>Term</label><select id="salTermSelect" onchange="loadSalaryTracker()">
       ${state.terms.map(t => `<option value="${t.id}" ${t.id===state.currentTermId?"selected":""}>${t.name}</option>`).join("")}</select></div>
     <div id="salBody"></div>
     <div class="no-print" style="margin-top:12px;" id="salExportHost"></div>`;
@@ -31,10 +37,10 @@ async function loadSalaryTracker() {
     const allPaid = months.every(Boolean);
     const nonePaid = months.every(v => !v);
     const badge = allPaid
-      ? `<span class="tag" style="background:rgba(34,197,94,.15);color:#22c55e;">✔ Fully Paid</span>`
+      ? `<span class="badge badge-success">✔ Fully Paid</span>`
       : nonePaid
-      ? `<span class="tag" style="background:rgba(239,68,68,.15);color:#ef4444;">✘ Unpaid</span>`
-      : `<span class="tag" style="background:rgba(201,151,63,.15);color:#C9973F;">◐ Partial</span>`;
+      ? `<span class="badge badge-danger">✘ Unpaid</span>`
+      : `<span class="badge badge-warning">◐ Partial</span>`;
     return `<tr>
       <td class="name-cell">${s.full_name}</td>
       <td>${s.staff_code}</td>

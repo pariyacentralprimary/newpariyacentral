@@ -30,20 +30,47 @@ const TAB_TITLES = { dashboard:"Dashboard", classes:"Classes & Scores", masterli
   registerStudent:"Register Student",
   settings:"Settings", myReport:"My Report Card" };
 
+// Visual grouping only — purely cosmetic ordering/labelling in the
+// sidebar. Does NOT affect which tabs a role can see (NAV_BY_ROLE
+// above still owns that), routes, or permissions in any way.
+const NAV_GROUPS = [
+  { label: "Overview", tabs: ["dashboard", "analytics", "catracker"] },
+  { label: "Academic", tabs: ["classes", "assignments", "timetable", "scoreControl", "printReports"] },
+  { label: "Students", tabs: ["students", "masterlist", "transferStudents", "unassignedStudents", "registerStudent"] },
+  { label: "Staff", tabs: ["staffDirectory", "salaryTracker"] },
+  { label: "Finance", tabs: ["fees"] },
+  { label: "Certificates", tabs: ["certificates"] },
+  { label: "Administration", tabs: ["classManagement", "importTool", "websites", "settings"] },
+  { label: "My Portal", tabs: ["myReport"] }, // student role only
+];
+
 function buildSidebar() {
   // Merge nav tabs across ALL of this person's roles (e.g. an
   // Admin who is also Teacher + Registrar sees every relevant tab
   // for each duty, not just the highest-priority one).
   const seen = new Set();
-  const nav = [];
+  const navById = {};
   (state.allRoles || [state.role]).forEach(role => {
     (NAV_BY_ROLE[role] || []).forEach(item => {
-      if (!seen.has(item[0])) { seen.add(item[0]); nav.push(item); }
+      if (!seen.has(item[0])) { seen.add(item[0]); navById[item[0]] = item; }
     });
   });
-  document.getElementById("sidebarNav").innerHTML = nav.map(([id,icon,label]) =>
-    `<a href="#${TAB_TO_ROUTE[id] || ""}" class="sidebar-item" data-tab="${id}" onclick="switchTab('${id}');return false;"><span class="si-icon"><i class="fa-solid ${icon}"></i></span>${label}</a>`
-  ).join("");
+
+  // Render in NAV_GROUPS order (visual only) so related items sit
+  // together; anything not covered by a group (shouldn't happen,
+  // but safe) falls into a trailing ungrouped section.
+  let html = "";
+  const placed = new Set();
+  NAV_GROUPS.forEach(group => {
+    const items = group.tabs.map(id => navById[id]).filter(Boolean);
+    if (!items.length) return;
+    items.forEach(item => placed.add(item[0]));
+    html += `<div class="sidebar-group"><div class="sidebar-group-label">${group.label}</div>${sidebarItemsHtml(items)}</div>`;
+  });
+  const leftover = Object.values(navById).filter(item => !placed.has(item[0]));
+  if (leftover.length) html += `<div class="sidebar-group">${sidebarItemsHtml(leftover)}</div>`;
+
+  document.getElementById("sidebarNav").innerHTML = html;
   const displayLabel = r => r.charAt(0).toUpperCase() + r.slice(1);
   const roleText = (state.allRoles && state.allRoles.length > 1)
     ? state.allRoles.map(displayLabel).join(" + ")
@@ -51,6 +78,29 @@ function buildSidebar() {
   document.getElementById("topbarRole").textContent = roleText;
   const fullName = state.staff?.full_name || state.student?.full_name || "";
   document.getElementById("topbarGreeting").textContent = fullName ? `Welcome, ${fullName}!` : "";
+  initSidebarCollapseState();
+}
+function sidebarItemsHtml(items) {
+  return items.map(([id,icon,label]) =>
+    `<a href="#${TAB_TO_ROUTE[id] || ""}" class="sidebar-item" data-tab="${id}" data-label="${label}" onclick="switchTab('${id}');return false;"><span class="si-icon"><i class="fa-solid ${icon}"></i></span><span>${label}</span></a>`
+  ).join("");
+}
+
+// ---- Sidebar collapse (desktop only; mobile always uses the full
+// slide-out drawer regardless of this setting) ----
+function initSidebarCollapseState() {
+  const collapsed = localStorage.getItem("pariya-sidebar-collapsed") === "1";
+  document.getElementById("sidebar").classList.toggle("collapsed", collapsed);
+  const btn = document.getElementById("sidebarCollapseBtn");
+  if (btn) btn.querySelector("i").className = collapsed ? "fa-solid fa-angles-right" : "fa-solid fa-angles-left";
+}
+function toggleSidebarCollapse() {
+  const sidebar = document.getElementById("sidebar");
+  const collapsed = !sidebar.classList.contains("collapsed");
+  sidebar.classList.toggle("collapsed", collapsed);
+  localStorage.setItem("pariya-sidebar-collapsed", collapsed ? "1" : "0");
+  const btn = document.getElementById("sidebarCollapseBtn");
+  if (btn) btn.querySelector("i").className = collapsed ? "fa-solid fa-angles-right" : "fa-solid fa-angles-left";
 }
 
 // Pure rendering — draws tab `id` into the DOM. Never touches the
@@ -78,18 +128,44 @@ function renderTab(id) {
 // ============================================================
 async function renderDashboard() {
   const el = document.getElementById("panel-dashboard");
-  el.innerHTML = `<div class="card-grid" id="dashStats"></div>`;
+  const fullName = state.staff?.full_name || state.student?.full_name || "";
+  el.innerHTML = `
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>${fullName ? "Welcome back, " + fullName.split(" ")[0] + "." : "Welcome."}</h1>
+        <p>Here's the current snapshot of Pariya Central Primary.</p>
+      </div>
+    </div>
+    <div class="kpi-grid" id="dashStats"></div>
+    <div class="settings-card">
+      <div class="settings-card-title">Quick Links</div>
+      <div class="quicklinks-grid" id="dashQuickLinks"></div>
+    </div>`;
   const { count: studentCount } = await sb.from("students").select("id", { count: "exact", head: true }).eq("is_active", true);
   const { count: staffCount } = await sb.from("staff").select("id", { count: "exact", head: true }).eq("is_active", true);
   document.getElementById("dashStats").innerHTML = `
-    ${statCard("fa-user-graduate", studentCount ?? "—", "Active Students")}
-    ${statCard("fa-user-tie", staffCount ?? "—", "Active Staff")}
-    ${statCard("fa-chalkboard", state.classes.length, "Classes")}
-    ${statCard("fa-book", state.subjects.length, "Subjects")}
+    ${kpiCard("fa-user-graduate", studentCount ?? "—", "Active Students")}
+    ${kpiCard("fa-user-tie", staffCount ?? "—", "Active Staff")}
+    ${kpiCard("fa-chalkboard", state.classes.length, "Classes")}
+    ${kpiCard("fa-book", state.subjects.length, "Subjects")}
   `;
+  // Quick Links use the exact same nav entries/routes this role
+  // already has in the sidebar — no new destinations, just faster
+  // access to a handful of the most common ones from the home page.
+  const seen = new Set();
+  const nav = [];
+  (state.allRoles || [state.role]).forEach(role => {
+    (NAV_BY_ROLE[role] || []).forEach(item => { if (!seen.has(item[0]) && item[0] !== "dashboard") { seen.add(item[0]); nav.push(item); } });
+  });
+  document.getElementById("dashQuickLinks").innerHTML = nav.slice(0, 8).map(([id,icon,label]) =>
+    `<a href="#${TAB_TO_ROUTE[id] || ""}" class="quicklink-card" onclick="switchTab('${id}');return false;"><i class="fa-solid ${icon}"></i> ${label}</a>`
+  ).join("") || `<p style="color:var(--dash-muted);font-size:12px;">No other sections available for your role.</p>`;
 }
 function statCard(icon, value, label) {
   return `<div class="class-card"><div class="cc-icon"><i class="fa-solid ${icon}"></i></div><div class="cc-name">${value}</div><div class="cc-sub">${label}</div></div>`;
+}
+function kpiCard(icon, value, label) {
+  return `<div class="kpi-card"><div class="kpi-icon"><i class="fa-solid ${icon}"></i></div><div><div class="kpi-value">${value}</div><div class="kpi-label">${label}</div></div></div>`;
 }
 
 // ============================================================
@@ -110,7 +186,14 @@ async function renderClasses() {
     }
     if (idSet.size) myClasses = state.classes.filter(c => idSet.has(c.id));
   }
-  el.innerHTML = `<div class="card-grid">${myClasses.map(c => `
+  el.innerHTML = `
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Classes &amp; Scores</h1>
+        <p>Select a class to enter or review CA and exam scores for the current term.</p>
+      </div>
+    </div>
+    <div class="card-grid">${myClasses.map(c => `
     <div class="class-card" onclick="openClass('${c.id}')">
       <div class="cc-icon">${c.icon || "📚"}</div>
       <div class="cc-name">${c.name}</div>
@@ -122,8 +205,15 @@ async function openClass(classId) {
   state.currentClass = state.classes.find(c => c.id === classId);
   const el = document.getElementById("tabRoot");
   el.innerHTML = `<div class="tab-panel active">
-    <button class="btn" onclick="switchTab('classes')"><i class="fa-solid fa-arrow-left"></i> Back to Classes</button>
-    <h2 style="font-family:var(--font-display);margin:14px 0 4px;">${state.currentClass.name}</h2>
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>${state.currentClass.name}</h1>
+        <p>Enter CA1 (15), CA2 (15), and Exam (70) scores per subject. Totals, grades, and positions update automatically once saved.</p>
+      </div>
+      <div class="page-header-actions">
+        <button class="btn" onclick="switchTab('classes')"><i class="fa-solid fa-arrow-left"></i> Back to Classes</button>
+      </div>
+    </div>
     <div class="term-pills" id="termPills"></div>
     <div id="classBody"></div>
   </div>`;
@@ -145,12 +235,14 @@ async function loadClassScoreGrid() {
   const classId = state.currentClass.id, termId = state.currentTermId;
   const isNurseryPrimary = state.currentClass.category === "nursery" || state.currentClass.category === "primary";
 
-  const [{ data: students }, { data: classSubjects }, { data: scores }, { data: windows }] = await Promise.all([
+  const [{ data: students }, { data: classSubjects }, { data: scores }, { data: windows }, { data: liveRanks }] = await Promise.all([
     sb.from("students").select("id, full_name, admission_no").eq("class_id", classId).eq("is_active", true).order("full_name"),
     sb.from("class_subjects").select("subject_id, subjects(id,name)").eq("class_id", classId),
     sb.from("student_scores").select("*").eq("class_id", classId).eq("term_id", termId),
     sb.from("term_period_windows").select("*").eq("term_id", termId),
+    sb.rpc("get_class_subject_ranks", { p_class_id: classId, p_term_id: termId }),
   ]);
+  const rankMap = {}; (liveRanks || []).forEach(r => { rankMap[r.subject_id + "_" + r.student_id] = r.position_label; });
 
   let subjectList = (classSubjects || []).map(cs => cs.subjects);
   const roles = state.allRoles || [state.role];
@@ -195,8 +287,8 @@ async function loadClassScoreGrid() {
   });
   html += `</div>`;
 
-  html += `<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Student</th>`;
-  subjectList.forEach(s => { html += `<th colspan="${caCols.length + 2}">${s.name}</th>`; });
+  html += `<div style="overflow-x:auto;"><table class="data-table sticky-head"><thead><tr><th>Student</th>`;
+  subjectList.forEach(s => { html += `<th colspan="${caCols.length + 4}">${s.name}</th>`; });
   html += `</tr><tr><th></th>`;
   subjectList.forEach(subj => {
     caCols.forEach(c => {
@@ -205,7 +297,7 @@ async function loadClassScoreGrid() {
       html += `<th>${c.toUpperCase()}${locked ? ' <i class="fa-solid fa-lock" title="Locked"></i>' : ""}</th>`;
     });
     const examLocked = lockSet.has(subj.id + "_exam");
-    html += `<th>Exam${examLocked ? ' <i class="fa-solid fa-lock" title="Locked"></i>' : ""}</th><th>Total</th>`;
+    html += `<th>Exam${examLocked ? ' <i class="fa-solid fa-lock" title="Locked"></i>' : ""}</th><th>Total</th><th>Grade</th><th>Pos</th>`;
   });
   html += `</tr></thead><tbody>`;
 
@@ -228,14 +320,19 @@ async function loadClassScoreGrid() {
         data-stu="${stu.id}" data-subj="${subj.id}" data-field="exam_score" onchange="markDirty(this)"
         ${examEditable ? "" : "disabled"} style="${examEditable ? "" : "opacity:.45;"}"/></td>`;
       const total = (rec.ca1||0) + (rec.ca2||0) + (isNurseryPrimary?0:(rec.ca3||0)) + (rec.exam_score||0);
+      const anyEntered = rec.ca1 != null || rec.ca2 != null || rec.ca3 != null || rec.exam_score != null;
+      const gradeLetter = anyEntered ? gradeFor(total).grade : "";
       html += `<td style="font-weight:800;">${total || ""}</td>`;
+      html += `<td>${gradeLetter ? `<span class="grade-badge grade-${gradeLetter}">${gradeLetter}</span>` : ""}</td>`;
+      html += `<td style="font-size:11px;color:var(--dash-muted);">${anyEntered ? (rankMap[subj.id + "_" + stu.id] || "—") : ""}</td>`;
     });
     html += `</tr>`;
   });
   html += `</tbody></table></div>
-    <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;">
+    <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
       <button class="btn btn-green" onclick="saveClassScores()"><i class="fa-solid fa-floppy-disk"></i> Save Scores</button>
       <button class="btn" onclick="viewClassReportCards()"><i class="fa-solid fa-file-lines"></i> View Report Cards</button>
+      <span id="scoresDirtyBadge" class="badge badge-warning" style="display:none;"></span>
     </div>`;
 
   // Per-subject submit / request-unlock controls (teachers submit their
@@ -303,7 +400,18 @@ async function submitUnlockRequest(subjectId, period) {
   alert("Request sent. The subject stays locked until admin approves.");
 }
 
-function markDirty(input) { input.dataset.dirty = "1"; input.style.borderColor = "var(--dash-green)"; }
+function markDirty(input) {
+  input.dataset.dirty = "1";
+  input.style.borderColor = "var(--dash-green)";
+  updateDirtyCount();
+}
+function updateDirtyCount() {
+  const badge = document.getElementById("scoresDirtyBadge");
+  if (!badge) return;
+  const n = document.querySelectorAll('#classBody input[data-dirty="1"]').length;
+  badge.textContent = n ? `${n} unsaved change${n === 1 ? "" : "s"}` : "";
+  badge.style.display = n ? "inline-flex" : "none";
+}
 
 async function saveClassScores() {
   const inputs = document.querySelectorAll('#classBody input[data-dirty="1"]');

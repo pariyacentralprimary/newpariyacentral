@@ -9,7 +9,14 @@ const TT_PERIODS = [1,2,3,4,5,6,7,8];
 
 async function renderTimetable() {
   const el = document.getElementById("panel-timetable");
-  el.innerHTML = `<div class="field"><label>Class</label>
+  el.innerHTML = `
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Timetable</h1>
+        <p>Weekly schedule per class — auto-generate from assigned teachers, or edit any slot by hand.</p>
+      </div>
+    </div>
+    <div class="field" style="max-width:280px;"><label>Class</label>
     <select id="ttClassSelect" onchange="loadTimetableGrid()"><option value="">— choose —</option>
     ${state.classes.map(c => `<option value="${c.id}">${c.name}</option>`).join("")}</select></div>
     <div id="ttGrid"></div>`;
@@ -41,12 +48,21 @@ async function loadTimetableGrid() {
   state.ttSlots = slots || [];
   state.ttAssigns = assigns || [];
 
+  if (!assigns || !assigns.length) {
+    grid.innerHTML = `<div class="empty-state"><i class="fa-solid fa-user-slash"></i><p>No teachers assigned to this class yet. Assign some in Curriculum &amp; Assignments before building a timetable.</p></div>`;
+    return;
+  }
+
   const slotMap = {};
   (slots||[]).forEach(s => { slotMap[`${s.day_of_week}_${s.period_index}`] = s; });
+  const filledCount = slots ? slots.length : 0;
+  const totalSlots = TT_DAYS.length * TT_PERIODS.length;
 
-  let html = `<div class="no-print" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+  let html = `
+  <div class="settings-card no-print" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
     <button class="btn btn-green" onclick="autoGenerateTimetable()"><i class="fa-solid fa-wand-magic-sparkles"></i> Auto-Generate</button>
     <button class="btn btn-danger" onclick="clearTimetable()"><i class="fa-solid fa-trash"></i> Clear Grid</button>
+    <span class="badge badge-info">${filledCount}/${totalSlots} periods filled</span>
     <span style="flex:1;"></span>
     <button class="btn" onclick="window.print()"><i class="fa-solid fa-print"></i> Print</button>
     <button class="btn" onclick="downloadTimetablePdf()"><i class="fa-solid fa-file-pdf"></i> PDF</button>
@@ -54,14 +70,14 @@ async function loadTimetableGrid() {
     <button class="btn" onclick="downloadTimetablePNG()"><i class="fa-solid fa-file-image"></i> PNG</button>
     <button class="btn" onclick="downloadTimetableExcel()"><i class="fa-solid fa-file-excel"></i> Excel</button>
   </div>
-  <div style="overflow-x:auto;"><table class="data-table" id="ttTable"><thead><tr><th>Period</th>${TT_DAYS.map(d => `<th>${TT_DAY_LABELS[d]}</th>`).join("")}</tr></thead><tbody>`;
+  <div style="overflow-x:auto;"><table class="data-table sticky-head" id="ttTable"><thead><tr><th>Period</th>${TT_DAYS.map(d => `<th>${TT_DAY_LABELS[d]}</th>`).join("")}</tr></thead><tbody>`;
   TT_PERIODS.forEach(p => {
     html += `<tr><td style="font-weight:800;">${p}</td>`;
     TT_DAYS.forEach(d => {
       const key = `${d}_${p}`;
       const cell = slotMap[key];
-      html += `<td style="min-width:120px;">
-        <select data-day="${d}" data-period="${p}" onchange="saveTimetableCell(this)" style="width:100%;font-size:11px;">
+      html += `<td style="min-width:130px;padding:5px !important;${cell ? "background:var(--dash-green-soft);" : ""}">
+        <select data-day="${d}" data-period="${p}" onchange="saveTimetableCell(this)" style="width:100%;font-size:11px;padding:6px;border-radius:6px;border:1px solid ${cell ? "var(--dash-green)" : "var(--dash-border)"};background:var(--dash-surface);color:var(--dash-text);">
           <option value="">— empty —</option>
           ${(assigns||[]).map(a => `<option value="${a.staff_id}|${a.subject_id}" ${cell && cell.staff_id===a.staff_id && cell.subject_id===a.subject_id ? "selected" : ""}>${a.subjects.name} (${a.staff.full_name})</option>`).join("")}
         </select>

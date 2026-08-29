@@ -381,9 +381,15 @@ async function deactivateStudent(id) {
 async function renderFees() {
   const el = document.getElementById("panel-fees");
   el.innerHTML = `
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Fees</h1>
+        <p>School-wide collection status, per-class fee amounts, and per-student payment ticking.</p>
+      </div>
+    </div>
     <div class="settings-card">
       <div class="settings-card-title">Fees Overview — Whole School</div>
-      <div class="field"><label>Term</label><select id="feeOverviewTerm" onchange="loadFeesOverview()">
+      <div class="field" style="max-width:280px;"><label>Term</label><select id="feeOverviewTerm" onchange="loadFeesOverview()">
         ${state.terms.map(t => `<option value="${t.id}" ${t.id===state.currentTermId?"selected":""}>${t.name}</option>`).join("")}</select></div>
       <div id="feeOverviewBody">Loading…</div>
     </div>
@@ -392,12 +398,17 @@ async function renderFees() {
       <p style="font-size:12px;color:var(--dash-muted);">Expected fee per student, per class — Primary 6 typically costs more than Primary 1.</p>
       <div id="feeStructureGrid"></div>
     </div>
-    <div class="field"><label>Select Class</label>
-      <select id="feeClassSelect" onchange="loadFeesGrid()"><option value="">— choose —</option>
-      ${state.classes.map(c => `<option value="${c.id}">${c.name}</option>`).join("")}</select></div>
-    <div class="field"><label>Term</label><select id="feeTermSelect" onchange="loadFeesGrid()">
-    ${state.terms.map(t => `<option value="${t.id}" ${t.id===state.currentTermId?"selected":""}>${t.name}</option>`).join("")}</select></div>
-    <div id="feeGrid"></div>`;
+    <div class="settings-card">
+      <div class="settings-card-title">Per-Student Payment</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <div class="field" style="flex:1;min-width:200px;"><label>Select Class</label>
+          <select id="feeClassSelect" onchange="loadFeesGrid()"><option value="">— choose —</option>
+          ${state.classes.map(c => `<option value="${c.id}">${c.name}</option>`).join("")}</select></div>
+        <div class="field" style="flex:1;min-width:200px;"><label>Term</label><select id="feeTermSelect" onchange="loadFeesGrid()">
+        ${state.terms.map(t => `<option value="${t.id}" ${t.id===state.currentTermId?"selected":""}>${t.name}</option>`).join("")}</select></div>
+      </div>
+      <div id="feeGrid"></div>
+    </div>`;
   await loadFeesOverview();
   await loadFeeStructureGrid();
 }
@@ -452,11 +463,11 @@ async function loadFeesOverview() {
     else { unpaidCount++; totalOutstandingAmount += Math.max(expected - paidAmt, 0); }
   });
 
-  body.innerHTML = `<div class="card-grid">
-    ${statCard("fa-money-bill-trend-up", "₦" + totalCollected.toLocaleString(), "Total Collected")}
-    ${statCard("fa-triangle-exclamation", "₦" + totalOutstandingAmount.toLocaleString(), "Total Outstanding")}
-    ${statCard("fa-circle-check", paidCount, "Students Fully Paid")}
-    ${statCard("fa-circle-xmark", unpaidCount, "Students Owing")}
+  body.innerHTML = `<div class="kpi-grid">
+    ${kpiCard("fa-money-bill-trend-up", "₦" + totalCollected.toLocaleString(), "Total Collected")}
+    ${kpiCard("fa-triangle-exclamation", "₦" + totalOutstandingAmount.toLocaleString(), "Total Outstanding")}
+    ${kpiCard("fa-circle-check", paidCount, "Students Fully Paid")}
+    ${kpiCard("fa-circle-xmark", unpaidCount, "Students Owing")}
   </div>
   ${unassignedCount > 0 ? `<p style="font-size:12px;color:var(--dash-muted);margin-top:10px;">
     <i class="fa-solid fa-triangle-exclamation"></i> ${unassignedCount} active student(s) have no class assigned and are excluded from these totals —

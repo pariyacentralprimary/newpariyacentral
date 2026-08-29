@@ -9,11 +9,17 @@
 async function renderCertificates() {
   const el = document.getElementById("panel-certificates");
   el.innerHTML = `
-    <div class="award-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
-      <button class="btn btn-green" id="ctab-best" onclick="switchCertTab('best')">🏅 Best Student Awards</button>
-      <button class="btn" id="ctab-custom" onclick="switchCertTab('custom')">🎖️ Custom Student Certificate</button>
-      <button class="btn" id="ctab-teacher" onclick="switchCertTab('teacher')">📋 Staff Certificate</button>
-      <button class="btn" id="ctab-testimonial" onclick="switchCertTab('testimonial')">🎓 Testimonial Certificate</button>
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Certificates &amp; Awards</h1>
+        <p>Generate Best Student, custom student, staff, or testimonial certificates.</p>
+      </div>
+    </div>
+    <div class="tab-bar">
+      <button class="tab-bar-item" id="ctab-best" onclick="switchCertTab('best')">🏅 Best Student Awards</button>
+      <button class="tab-bar-item" id="ctab-custom" onclick="switchCertTab('custom')">🎖️ Custom Student Certificate</button>
+      <button class="tab-bar-item" id="ctab-teacher" onclick="switchCertTab('teacher')">📋 Staff Certificate</button>
+      <button class="tab-bar-item" id="ctab-testimonial" onclick="switchCertTab('testimonial')">🎓 Testimonial Certificate</button>
     </div>
 
     <div id="cpanel-best" class="cert-panel">
@@ -71,8 +77,7 @@ async function renderCertificates() {
 function switchCertTab(tab) {
   ["best","custom","teacher","testimonial"].forEach(t => {
     document.getElementById(`cpanel-${t}`).style.display = t === tab ? "block" : "none";
-    const btn = document.getElementById(`ctab-${t}`);
-    btn.classList.toggle("btn-green", t === tab);
+    document.getElementById(`ctab-${t}`).classList.toggle("active", t === tab);
   });
 }
 
@@ -504,10 +509,10 @@ async function loadAnalytics() {
   const avgs = classNames.map(name => byClass[name].count ? +(byClass[name].total/byClass[name].count).toFixed(1) : 0);
   const passRates = classNames.map(name => byClass[name].count ? Math.round((byClass[name].pass/byClass[name].count)*100) : 0);
 
-  body.innerHTML = `<div class="card-grid">${classNames.map(name => {
+  body.innerHTML = `<div class="kpi-grid">${classNames.map(name => {
     const d = byClass[name];
     const avg = d.count ? (d.total/d.count).toFixed(1) : "—";
-    return statCard("fa-chart-simple", avg, `${name} — Class Average`) ;
+    return kpiCard("fa-chart-simple", avg, `${name} — Class Average`) ;
   }).join("")}</div>
   <div class="settings-card" style="margin-top:16px;">
     <div class="settings-card-title">Class Average by Class</div>
@@ -548,10 +553,21 @@ async function loadAnalytics() {
 // ============================================================
 async function renderCaTracker() {
   const el = document.getElementById("panel-catracker");
-  el.innerHTML = `<div class="field"><label>Term</label><select id="caTermSelect" onchange="loadCaTracker()">
+  el.innerHTML = `
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>CA Tracker</h1>
+        <p>How much of each class's scores have been entered for the term below.</p>
+      </div>
+    </div>
+    <div class="field" style="max-width:280px;"><label>Term</label><select id="caTermSelect" onchange="loadCaTracker()">
     ${state.terms.map(t => `<option value="${t.id}" ${t.id===state.currentTermId?"selected":""}>${t.name}</option>`).join("")}</select></div>
     <div id="caBody"></div>`;
   await loadCaTracker();
+}
+function progressBarHtml(pct) {
+  const cls = pct >= 80 ? "" : pct >= 40 ? "mid" : "low";
+  return `<div class="progress-row"><div class="progress-track"><div class="progress-fill ${cls}" style="width:${pct}%;"></div></div><span class="progress-pct">${pct}%</span></div>`;
 }
 async function loadCaTracker() {
   const termId = document.getElementById("caTermSelect").value;
@@ -567,7 +583,7 @@ async function loadCaTracker() {
     const expected = (studentCount||0) * subjectCount;
     const { count: entered } = await sb.from("student_scores").select("*", { count: "exact", head: true }).eq("class_id", cls.id).eq("term_id", termId);
     const pct = expected ? Math.round(((entered||0)/expected)*100) : 0;
-    rowsHtml.push(`<tr><td class="name-cell">${cls.name}</td><td>${studentCount||0}</td><td>${subjectCount}</td><td>${entered||0}/${expected}</td><td>${pct}%</td></tr>`);
+    rowsHtml.push(`<tr><td class="name-cell">${cls.name}</td><td>${studentCount||0}</td><td>${subjectCount}</td><td>${entered||0}/${expected}</td><td style="min-width:140px;">${progressBarHtml(pct)}</td></tr>`);
   }
   body.innerHTML = `<div style="overflow-x:auto;"><table class="data-table">
     <thead><tr><th>Class</th><th>Students</th><th>Subjects</th><th>Scores Entered</th><th>Completion</th></tr></thead>

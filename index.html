@@ -105,7 +105,8 @@ button, input, select { font-family:var(--font-ui); }
 .sidebar-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:199; display:none; }
 .sidebar-overlay.show { display:block; }
 .main-area { margin-left:0; padding:16px; }
-@media (min-width:860px){ .sidebar{ transform:translateX(0); } .main-area{ margin-left:230px; } .hamburger-btn{ display:none; } }
+@media (min-width:860px){ .sidebar{ transform:translateX(0); } .main-area{ margin-left:230px; } .hamburger-btn{ display:none; }
+  .sidebar-collapse-btn{ display:flex !important; } .sidebar-close{ display:none; } }
 
 .topbar { display:flex; align-items:center; gap:12px; margin-bottom:18px; }
 .hamburger-btn, .theme-toggle-btn { background:none; border:1px solid var(--dash-border); border-radius:var(--radius-sm); color:var(--dash-muted); font-size:16px; padding:7px 10px; cursor:pointer; }
@@ -138,6 +139,8 @@ table.data-table th, table.data-table td { border:1px solid var(--dash-border); 
 table.data-table th { background:var(--dash-card); color:var(--dash-accent); font-size:11px; }
 table.data-table input { width:52px; padding:4px; text-align:center; border-radius:6px; border:1px solid var(--dash-border); background:var(--dash-surface); color:var(--dash-text); }
 table.data-table td.name-cell { text-align:left; font-weight:700; }
+table.data-table.sticky-head { position:relative; }
+table.data-table.sticky-head thead th { position:sticky; top:0; z-index:5; box-shadow:0 1px 0 var(--dash-border); }
 
 .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:500; display:none; align-items:center; justify-content:center; padding:16px; }
 .modal-overlay.show { display:flex; }
@@ -152,6 +155,90 @@ table.data-table td.name-cell { text-align:left; font-weight:700; }
 .pill-list { display:flex; flex-wrap:wrap; gap:8px; }
 .tag { background:var(--dash-green-soft); color:var(--dash-accent); padding:4px 10px; border-radius:999px; font-size:11px; font-weight:800; display:flex; align-items:center; gap:6px; }
 .tag button { background:none; border:none; color:inherit; cursor:pointer; }
+
+/* ================= MODERNIZATION ADDITIONS (visual only) ================= */
+
+/* ---- Page header: title + subtitle + primary action, used at the
+   top of every panel so "where am I / what can I do" is instant ---- */
+.page-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
+.page-header-text h1 { font-family:var(--font-display); font-size:20px; color:var(--dash-text); margin:0 0 3px; }
+.page-header-text p { font-size:12.5px; color:var(--dash-muted); margin:0; max-width:56ch; }
+.page-header-actions { display:flex; gap:8px; flex-wrap:wrap; }
+
+/* ---- KPI cards (dashboard / analytics) ---- */
+.kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:18px; }
+.kpi-card { background:var(--dash-card); border:1px solid var(--dash-border); border-radius:var(--radius); padding:18px;
+  display:flex; align-items:center; gap:14px; transition:var(--transition); position:relative; overflow:hidden; }
+.kpi-card:hover { border-color:var(--dash-green); box-shadow:0 6px 20px rgba(0,0,0,0.18); transform:translateY(-2px); }
+.kpi-card .kpi-icon { width:46px; height:46px; border-radius:12px; background:var(--dash-green-soft); color:var(--dash-accent);
+  display:flex; align-items:center; justify-content:center; font-size:19px; flex-shrink:0; }
+.kpi-card .kpi-value { font-family:var(--font-display); font-size:24px; font-weight:700; color:var(--dash-text); line-height:1.1; }
+.kpi-card .kpi-label { font-size:11.5px; color:var(--dash-muted); font-weight:700; margin-top:2px; text-transform:uppercase; letter-spacing:.03em; }
+
+/* ---- Quick links (dashboard shortcuts to existing routes) ---- */
+.quicklinks-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
+.quicklink-card { background:var(--dash-card); border:1px solid var(--dash-border); border-radius:var(--radius-sm); padding:13px;
+  display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--dash-text); font-weight:700; font-size:12.5px; transition:var(--transition); }
+.quicklink-card:hover { border-color:var(--dash-green); color:var(--dash-accent); transform:translateY(-1px); }
+.quicklink-card i { color:var(--dash-accent); font-size:15px; width:18px; text-align:center; }
+
+/* ---- Status badges — reusable everywhere (Paid/Unpaid, Active/Inactive,
+   Open/Closed, grade letters, etc.) ---- */
+.badge { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:999px; font-size:10.5px; font-weight:800; letter-spacing:.02em; white-space:nowrap; }
+.badge-success { background:rgba(34,197,94,.14); color:#22c55e; }
+.badge-danger  { background:rgba(239,68,68,.14); color:#ef4444; }
+.badge-warning { background:rgba(201,151,63,.16); color:var(--dash-green); }
+.badge-info    { background:var(--dash-green-soft); color:var(--dash-accent); }
+.badge-neutral { background:rgba(138,115,109,.16); color:var(--dash-muted); }
+.grade-badge { display:inline-flex; align-items:center; justify-content:center; min-width:24px; height:22px; padding:0 6px; border-radius:6px; font-weight:900; font-size:12px; }
+.grade-badge.grade-A { background:rgba(34,197,94,.16); color:#22c55e; }
+.grade-badge.grade-B { background:var(--dash-green-soft); color:var(--dash-accent); }
+.grade-badge.grade-C { background:rgba(201,151,63,.16); color:var(--dash-green); }
+.grade-badge.grade-D, .grade-badge.grade-E { background:rgba(201,151,63,.22); color:#a9722e; }
+.grade-badge.grade-F { background:rgba(239,68,68,.16); color:#ef4444; }
+
+/* ---- Progress bars (CA Tracker completion, etc.) ---- */
+.progress-track { width:100%; height:8px; border-radius:999px; background:var(--dash-border); overflow:hidden; }
+.progress-fill { height:100%; border-radius:999px; background:var(--dash-green); transition:width .35s ease; }
+.progress-fill.low { background:#ef4444; }
+.progress-fill.mid { background:#a9722e; }
+.progress-row { display:flex; align-items:center; gap:10px; }
+.progress-row .progress-track { flex:1; }
+.progress-row .progress-pct { font-size:11.5px; font-weight:800; color:var(--dash-text); width:38px; text-align:right; flex-shrink:0; }
+
+/* ---- Elegant tab bar (Certificates, Settings sections, etc.) ---- */
+.tab-bar { display:flex; gap:4px; flex-wrap:wrap; background:var(--dash-surface); border:1px solid var(--dash-border); border-radius:var(--radius-sm); padding:4px; margin-bottom:18px; }
+.tab-bar-item { flex:1; min-width:120px; text-align:center; padding:9px 12px; border-radius:7px; border:none; background:none; color:var(--dash-muted);
+  font-weight:800; font-size:12px; cursor:pointer; transition:var(--transition); white-space:nowrap; }
+.tab-bar-item:hover { color:var(--dash-text); }
+.tab-bar-item.active { background:var(--dash-green); color:#241408; }
+
+/* ---- Empty states ---- */
+.empty-state { text-align:center; padding:36px 16px; color:var(--dash-muted); }
+.empty-state i { font-size:28px; opacity:.5; margin-bottom:10px; display:block; }
+.empty-state p { font-size:13px; margin:0; }
+
+/* ---- Sidebar section grouping + collapse (visual grouping only —
+   destinations/permissions/behavior are unchanged) ---- */
+.sidebar-group-label { font-size:9.5px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--dash-muted);
+  padding:14px 12px 6px; opacity:.75; }
+.sidebar-group:first-child .sidebar-group-label { padding-top:4px; }
+.sidebar-collapse-btn { background:none; border:1px solid var(--dash-border); border-radius:var(--radius-sm); color:var(--dash-muted);
+  width:28px; height:28px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.sidebar-collapse-btn:hover { color:var(--dash-accent); border-color:var(--dash-green); }
+@media (min-width:860px) {
+  .sidebar.collapsed { width:64px; }
+  .sidebar.collapsed .sidebar-header-title, .sidebar.collapsed .sidebar-group-label,
+  .sidebar.collapsed .sidebar-item span:not(.si-icon), .sidebar.collapsed .sidebar-footer span,
+  .sidebar.collapsed #topbarGreetingDup { display:none; }
+  .sidebar.collapsed .sidebar-item { justify-content:center; position:relative; }
+  .sidebar.collapsed .sidebar-item:hover::after { content:attr(data-label); position:absolute; left:100%; top:50%; transform:translateY(-50%);
+    margin-left:10px; background:var(--dash-card); border:1px solid var(--dash-border); color:var(--dash-text); padding:6px 10px; border-radius:6px;
+    font-size:12px; white-space:nowrap; z-index:250; box-shadow:0 4px 14px rgba(0,0,0,.3); }
+  .sidebar.collapsed ~ .main-area { margin-left:64px; }
+  .sidebar.collapsed .sidebar-header { justify-content:center; }
+}
+@media (max-width:859px) { .sidebar.collapsed { width:230px; } } /* collapse is a desktop-only affordance */
 
 /* ---------- Report card — ported design: navy/green/blue/red accent
    system, three-column info box, banner pills. Flat literal hex
@@ -423,6 +510,7 @@ table.data-table td.name-cell { text-align:left; font-weight:700; }
   <div class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <div class="sidebar-header-title" id="sidebarSchoolName">Pariya Central Primary</div>
+      <button class="sidebar-collapse-btn no-print" onclick="toggleSidebarCollapse()" title="Collapse sidebar" style="display:none;" id="sidebarCollapseBtn"><i class="fa-solid fa-angles-left"></i></button>
       <button class="sidebar-close" onclick="toggleSidebar(false)"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="sidebar-nav" id="sidebarNav"></div>

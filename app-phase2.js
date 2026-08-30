@@ -7,6 +7,12 @@
 async function renderAssignments() {
   const el = document.getElementById("panel-assignments");
   el.innerHTML = `
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Curriculum &amp; Assignments</h1>
+        <p>Manage the subject list, which subjects each class takes, and which teacher covers each class + subject.</p>
+      </div>
+    </div>
     <div class="settings-card">
       <div class="settings-card-title">Subjects (school-wide list)</div>
       <div id="subjectsList" class="pill-list"></div>

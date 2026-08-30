@@ -3,7 +3,14 @@
 // ============================================================
 async function renderWebsites() {
   const el = document.getElementById("panel-websites");
-  el.innerHTML = `<div class="settings-card">
+  el.innerHTML = `
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>School Websites</h1>
+        <p>Credential vault for school-related web accounts. Passwords are hidden by default.</p>
+      </div>
+    </div>
+    <div class="settings-card">
     <div class="settings-card-title">Add Entry</div>
     <div class="field"><label>Function / Name</label><input id="wsFunc" placeholder="e.g. School Portal, Domain Registrar"/></div>
     <div class="field"><label>URL</label><input id="wsUrl"/></div>
@@ -21,8 +28,18 @@ async function loadWebsitesList() {
       <div class="settings-row"><strong>${r.function_name}</strong><button class="btn btn-danger" onclick="deleteWebsiteEntry('${r.id}')">Delete</button></div>
       <div class="settings-row"><span>URL</span><span>${r.url ? `<a href="${r.url}" target="_blank">${r.url}</a>` : "—"}</span></div>
       <div class="settings-row"><span>Username</span><span>${r.username || "—"}</span></div>
-      <div class="settings-row"><span>Password</span><span>${r.password_encrypted || "—"}</span></div>
-    </div>`).join("") || `<p style="color:var(--dash-muted);">No entries yet.</p>`;
+      <div class="settings-row"><span>Password</span><span style="display:flex;align-items:center;gap:8px;">
+        <span id="wspass-${r.id}">${r.password_encrypted ? "••••••••" : "—"}</span>
+        ${r.password_encrypted ? `<button class="btn no-print" style="padding:2px 8px;font-size:10px;" onclick="toggleWebsitePassword('${r.id}','${String(r.password_encrypted).replace(/'/g,"&apos;")}',this)"><i class="fa-solid fa-eye"></i></button>` : ""}
+      </span></div>
+    </div>`).join("") || `<div class="empty-state"><i class="fa-solid fa-vault"></i><p>No entries yet.</p></div>`;
+}
+function toggleWebsitePassword(id, plain, btn) {
+  const span = document.getElementById(`wspass-${id}`);
+  const showing = span.dataset.showing === "1";
+  span.textContent = showing ? "••••••••" : plain;
+  span.dataset.showing = showing ? "0" : "1";
+  btn.innerHTML = showing ? `<i class="fa-solid fa-eye"></i>` : `<i class="fa-solid fa-eye-slash"></i>`;
 }
 async function addWebsiteEntry() {
   const function_name = document.getElementById("wsFunc").value.trim();
@@ -51,6 +68,12 @@ async function deleteWebsiteEntry(id) {
 async function renderImportTool() {
   const el = document.getElementById("panel-importTool");
   el.innerHTML = `
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Bulk Import</h1>
+        <p>Paste CSV → Preview → Import. Creates working logins automatically for every row.</p>
+      </div>
+    </div>
     <div class="settings-card">
       <div class="settings-card-title">Import Students</div>
       <p style="font-size:12px;color:var(--dash-muted);">CSV headers: admission_no, full_name, class_name, gender, date_of_birth (YYYY-MM-DD), guardian_name, guardian_phone, password (optional — leave blank to use the school default password)</p>

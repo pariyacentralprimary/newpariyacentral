@@ -790,16 +790,26 @@ async function renderPrintReports() {
   const el = document.getElementById("panel-printReports");
   let myClasses = state.classes;
   el.innerHTML = `
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Print Report Cards</h1>
+        <p>Select a class and term → Load every active student's report card → Review → Print.</p>
+      </div>
+    </div>
     <div class="settings-card">
       <div class="settings-card-title">Print All Report Cards — One Class, One Term</div>
       <p style="font-size:12px;color:var(--dash-muted);">Loads every active student's report card for the class + term below, one per printed page, then opens the print dialog. Nothing else on the page will print — just the report cards.</p>
-      <div class="field"><label>Class</label><select id="prClassSelect">
-        <option value="">— choose —</option>
-        ${myClasses.map(c => `<option value="${c.id}">${c.name}</option>`).join("")}</select></div>
-      <div class="field"><label>Term</label><select id="prTermSelect">
-        ${state.terms.map(t => `<option value="${t.id}" ${t.id===state.currentTermId?"selected":""}>${t.name}</option>`).join("")}</select></div>
-      <button class="btn btn-green" onclick="loadBulkReportCards()"><i class="fa-solid fa-file-lines"></i> Load Report Cards</button>
-      <button class="btn no-print" id="prPrintBtnTop" disabled onclick="window.print()"><i class="fa-solid fa-print"></i> Print All (load first)</button>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;">
+        <div class="field" style="flex:1;min-width:180px;"><label>1. Class</label><select id="prClassSelect">
+          <option value="">— choose —</option>
+          ${myClasses.map(c => `<option value="${c.id}">${c.name}</option>`).join("")}</select></div>
+        <div class="field" style="flex:1;min-width:180px;"><label>2. Term</label><select id="prTermSelect">
+          ${state.terms.map(t => `<option value="${t.id}" ${t.id===state.currentTermId?"selected":""}>${t.name}</option>`).join("")}</select></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-green" onclick="loadBulkReportCards()"><i class="fa-solid fa-file-lines"></i> 3. Load Report Cards</button>
+        <button class="btn no-print" id="prPrintBtnTop" disabled onclick="window.print()"><i class="fa-solid fa-print"></i> 4. Print All (load first)</button>
+      </div>
     </div>
     <div id="prStatus" style="margin:10px 0;color:var(--dash-muted);font-size:13px;"></div>
     <div id="prBulkHost"></div>`;
@@ -905,7 +915,13 @@ async function loadBulkReportCards() {
 // ============================================================
 async function renderUnassignedStudents() {
   const el = document.getElementById("panel-unassignedStudents");
-  el.innerHTML = `<p style="color:var(--dash-muted);font-size:12px;">Students in this list are excluded from Fees totals, report cards, and Master List until assigned to a class.</p>
+  el.innerHTML = `
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Unassigned Students</h1>
+        <p>These students have no class yet, so they're excluded from Fees totals, report cards, and the Master List until assigned.</p>
+      </div>
+    </div>
     <div id="unassignedBody">Loading…</div>`;
   await loadUnassignedStudents();
 }
@@ -913,8 +929,10 @@ async function loadUnassignedStudents() {
   const body = document.getElementById("unassignedBody");
   const { data: students } = await sb.from("students").select("id, full_name, admission_no, gender")
     .is("class_id", null).eq("is_active", true).order("full_name");
-  if (!students || !students.length) { body.innerHTML = `<p style="color:var(--dash-muted);">None — every active student is assigned to a class.</p>`; return; }
-  body.innerHTML = `<div style="overflow-x:auto;"><table class="data-table">
+  if (!students || !students.length) { body.innerHTML = `<div class="empty-state"><i class="fa-solid fa-circle-check"></i><p>None — every active student is assigned to a class.</p></div>`; return; }
+  body.innerHTML = `
+    <div class="badge badge-warning" style="margin-bottom:12px;"><i class="fa-solid fa-triangle-exclamation"></i> ${students.length} student${students.length===1?"":"s"} awaiting class assignment</div>
+    <div style="overflow-x:auto;"><table class="data-table">
     <thead><tr><th>Admission No</th><th>Name</th><th>Gender</th><th>Assign to Class</th></tr></thead>
     <tbody>${students.map(s => `<tr>
       <td>${s.admission_no}</td><td class="name-cell">${s.full_name}</td><td>${s.gender||"-"}</td>
@@ -944,6 +962,12 @@ async function renderRegisterStudent() {
   const lastIssued = next > 1 ? prefix + String(next - 1).padStart(4, "0") : "none yet";
   const nextNumber = prefix + String(next).padStart(4, "0");
   el.innerHTML = `
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Register Student</h1>
+        <p>Registers using the school's auto admission-number scheme below.</p>
+      </div>
+    </div>
     <div class="settings-card" style="background:var(--dash-green-soft);">
       <div style="font-size:12px;">Last admission number issued: <strong id="regLastIssued">${lastIssued}</strong></div>
       <div style="font-size:12px;">This registration will get: <strong id="regNextNumber">${nextNumber}</strong></div>

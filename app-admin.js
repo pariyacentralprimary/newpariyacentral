@@ -22,7 +22,14 @@ async function renderMasterList() {
     }
     if (idSet.size) myClasses = state.classes.filter(c => idSet.has(c.id));
   }
-  el.innerHTML = `<div class="field"><label>Select Class</label>
+  el.innerHTML = `
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Master List</h1>
+        <p>Full student roster per class, with Position List and PDF/Word export.</p>
+      </div>
+    </div>
+    <div class="field" style="max-width:280px;"><label>Select Class</label>
     <select id="mlClassSelect" onchange="loadMasterList(this.value)">
       <option value="">— choose —</option>
       ${myClasses.map(c => `<option value="${c.id}">${c.name}</option>`).join("")}
@@ -39,13 +46,15 @@ async function loadMasterList(classId) {
     .select("id, admission_no, full_name, gender, date_of_birth, guardian_name, guardian_phone, staff:registered_by(full_name)")
     .eq("class_id", classId).eq("is_active", true).order("full_name");
 
-  body.innerHTML = `<div style="overflow-x:auto;"><table class="data-table" id="masterListTable">
+  body.innerHTML = `
+    <div class="field" style="max-width:280px;"><input id="mlSearch" placeholder="Search by name or admission no…" oninput="filterMasterListTable()"/></div>
+    <div style="overflow-x:auto;"><table class="data-table sticky-head" id="masterListTable">
     <thead><tr><th>#</th><th>Adm No</th><th>Name</th><th>Gender</th><th>DOB</th><th>Guardian</th><th>Phone</th>${isRegistrar?"<th>Registered By</th>":""}</tr></thead>
     <tbody>${(students||[]).map((s,i) => `<tr>
       <td>${i+1}</td><td>${s.admission_no}</td><td class="name-cell">${s.full_name}</td>
       <td>${s.gender||"-"}</td><td>${s.date_of_birth||"-"}</td><td>${s.guardian_name||"-"}</td><td>${s.guardian_phone||"-"}</td>
       ${isRegistrar?`<td>${s.staff?.full_name||"—"}</td>`:""}
-    </tr>`).join("")}</tbody></table></div>
+    </tr>`).join("") || `<tr><td colspan="8"><div class="empty-state"><i class="fa-solid fa-user-slash"></i><p>No active students in this class yet.</p></div></td></tr>`}</tbody></table></div>
     <div class="no-print" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
       <button class="btn" onclick="window.print()"><i class="fa-solid fa-print"></i> Print</button>
       <button class="btn" onclick="downloadBrandedPdf('Master List','${className.replace(/'/g,"")} — ${(state.schoolSettings.current_session||"").replace(/'/g,"")}',document.getElementById('masterListTable').outerHTML,'MasterList_${className.replace(/\s/g,"_")}.pdf')"><i class="fa-solid fa-file-pdf"></i> Download PDF</button>
@@ -53,6 +62,12 @@ async function loadMasterList(classId) {
       <button class="btn" style="margin-left:auto;" onclick="loadPositionList('${classId}','${className.replace(/'/g,"&apos;")}')"><i class="fa-solid fa-ranking-star"></i> Position List</button>
     </div>
     <div id="positionListHost" style="margin-top:20px;"></div>`;
+}
+function filterMasterListTable() {
+  const q = document.getElementById("mlSearch").value.trim().toLowerCase();
+  document.querySelectorAll("#masterListTable tbody tr").forEach(tr => {
+    tr.style.display = tr.textContent.toLowerCase().includes(q) ? "" : "none";
+  });
 }
 
 // ============================================================
@@ -96,6 +111,15 @@ async function renderStaffDirectory() {
   if (state.role !== "admin") { document.getElementById("panel-staffDirectory").innerHTML = "Admins only."; return; }
   const el = document.getElementById("panel-staffDirectory");
   el.innerHTML = `
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Staff Directory</h1>
+        <p>Add, edit, deactivate staff, assign positions, and set login passwords.</p>
+      </div>
+      <div class="page-header-actions">
+        <button class="btn btn-green" onclick="openStaffForm()"><i class="fa-solid fa-plus"></i> Add Staff</button>
+      </div>
+    </div>
     <div class="settings-card">
       <div class="settings-card-title">Bulk Reset — Teachers Only</div>
       <p style="font-size:12px;color:var(--dash-muted);">Applies only to staff whose sole role is Teacher — never to Admin, Headmaster, Principal, or Bursar accounts, which are always managed individually below.</p>
@@ -107,7 +131,7 @@ async function renderStaffDirectory() {
       <button class="btn" onclick="bulkResetTeacherPasswords()">Reset Passwords Only</button>
       <div id="bulkTeacherResult" style="margin-top:12px;font-size:12px;"></div>
     </div>
-    <button class="btn btn-green" onclick="openStaffForm()"><i class="fa-solid fa-plus"></i> Add Staff</button>
+    <div class="field" style="max-width:280px;"><input id="staffSearch" placeholder="Search staff by name, ID, or position…" oninput="filterStaffList()"/></div>
     <div id="staffList" style="margin-top:14px;"></div>`;
   await loadStaffList();
 }
@@ -148,15 +172,32 @@ async function loadStaffList() {
     .order("full_name");
   if (error) { document.getElementById("staffList").innerHTML = `<p style="color:var(--dash-danger);">Failed to load staff: ${error.message}</p>`; return; }
   document.getElementById("staffList").innerHTML = `<div class="card-grid">${(staff||[]).map(s => `
-    <div class="class-card" style="cursor:default;">
-      <div class="cc-name">${s.full_name}</div>
-      <div class="cc-sub">${s.staff_code} · ${(s.positions||[]).join(", ") || "Teacher"}</div>
-      <div class="cc-sub">${s.is_active ? "Active" : "Inactive"}</div>
-      <div style="display:flex;gap:6px;margin-top:8px;">
+    <div class="class-card" style="cursor:default;text-align:left;" data-search="${(s.full_name+" "+s.staff_code+" "+(s.positions||[]).join(" ")).toLowerCase()}">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <div style="width:38px;height:38px;border-radius:50%;background:var(--dash-green-soft);color:var(--dash-accent);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;flex-shrink:0;">${initials(s.full_name)}</div>
+        <div style="min-width:0;">
+          <div class="cc-name" style="text-align:left;">${s.full_name}</div>
+          <div class="cc-sub" style="text-align:left;">${s.staff_code}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;">
+        ${(s.positions||["Teacher"]).map(p => `<span class="badge badge-info">${p}</span>`).join("")}
+        <span class="badge ${s.is_active ? "badge-success" : "badge-neutral"}">${s.is_active ? "Active" : "Inactive"}</span>
+      </div>
+      <div style="display:flex;gap:6px;">
         <button class="btn" style="flex:1;" onclick='openStaffForm(${JSON.stringify(s).replace(/'/g,"&apos;")})'>Edit</button>
         <button class="btn btn-danger" onclick="deactivateStaff('${s.id}')">${s.is_active?"Deactivate":"Activate"}</button>
       </div>
-    </div>`).join("")}</div>`;
+    </div>`).join("") || `<div class="empty-state"><i class="fa-solid fa-user-tie"></i><p>No staff yet — add your first one above.</p></div>`}</div>`;
+}
+function initials(name) {
+  return (name||"").trim().split(/\s+/).slice(0,2).map(n => n[0]?.toUpperCase()||"").join("") || "?";
+}
+function filterStaffList() {
+  const q = document.getElementById("staffSearch").value.trim().toLowerCase();
+  document.querySelectorAll("#staffList .class-card").forEach(card => {
+    card.style.display = (card.dataset.search||"").includes(q) ? "" : "none";
+  });
 }
 function openStaffForm(staff) {
   const positions = ["Admin","Headmaster","Principal","Bursar","Admin Officer","Teacher","Registrar"];
@@ -246,6 +287,12 @@ async function provisionAuthAccountSilent(kind, table_id, login_id, password) {
 async function renderStudents() {
   const el = document.getElementById("panel-students");
   el.innerHTML = `
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Students</h1>
+        <p>Add, edit, deactivate students, assign class, and set login passwords.</p>
+      </div>
+    </div>
     <div class="settings-card">
       <div class="settings-card-title">Bulk Reset — All Students</div>
       <p style="font-size:12px;color:var(--dash-muted);">Applies to every active student across all classes. Admission numbers are reassigned globally in serial order (sorted by class name, then student name) — never per-class, so two students in different classes never end up with the same number.</p>
@@ -261,10 +308,17 @@ async function renderStudents() {
       <div class="field" style="flex:1;min-width:180px;"><label>Filter by Class</label>
         <select id="stuFilterClass" onchange="loadStudentsList()"><option value="">All Classes</option>
         ${state.classes.map(c => `<option value="${c.id}">${c.name}</option>`).join("")}</select></div>
+      <div class="field" style="flex:1;min-width:180px;"><label>Search</label><input id="stuSearch" placeholder="Name or admission no…" oninput="filterStudentsList()"/></div>
       <button class="btn btn-green" onclick="openStudentForm()"><i class="fa-solid fa-plus"></i> Add Student</button>
     </div>
     <div id="studentsList" style="margin-top:14px;"></div>`;
   await loadStudentsList();
+}
+function filterStudentsList() {
+  const q = document.getElementById("stuSearch").value.trim().toLowerCase();
+  document.querySelectorAll("#studentsList .class-card").forEach(card => {
+    card.style.display = (card.dataset.search||"").includes(q) ? "" : "none";
+  });
 }
 async function bulkRenumberStudents() {
   const prefix = document.getElementById("bulkStudentPrefix").value.trim();
@@ -295,15 +349,23 @@ async function loadStudentsList() {
   const { data: students, error } = await q;
   if (error) { document.getElementById("studentsList").innerHTML = `<p style="color:var(--dash-danger);">Failed to load students: ${error.message}</p>`; return; }
   document.getElementById("studentsList").innerHTML = `<div class="card-grid">${(students||[]).map(s => `
-    <div class="class-card" style="cursor:default;">
-      <div class="cc-name">${s.full_name}</div>
-      <div class="cc-sub">${s.admission_no} · ${s.classes?.name || "Unassigned"}</div>
-      <div class="cc-sub">${s.is_active ? "Active" : "Inactive"}</div>
-      <div style="display:flex;gap:6px;margin-top:8px;">
+    <div class="class-card" style="cursor:default;text-align:left;" data-search="${(s.full_name+" "+s.admission_no).toLowerCase()}">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <div style="width:38px;height:38px;border-radius:50%;background:var(--dash-green-soft);color:var(--dash-accent);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;flex-shrink:0;">${initials(s.full_name)}</div>
+        <div style="min-width:0;">
+          <div class="cc-name" style="text-align:left;">${s.full_name}</div>
+          <div class="cc-sub" style="text-align:left;">${s.admission_no}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;">
+        <span class="badge ${s.classes?.name ? "badge-info" : "badge-warning"}">${s.classes?.name || "Unassigned"}</span>
+        <span class="badge ${s.is_active ? "badge-success" : "badge-neutral"}">${s.is_active ? "Active" : "Inactive"}</span>
+      </div>
+      <div style="display:flex;gap:6px;">
         <button class="btn" style="flex:1;" onclick='openStudentForm(${JSON.stringify(s).replace(/'/g,"&apos;")})'>Edit</button>
         <button class="btn btn-danger" onclick="deactivateStudent('${s.id}')">${s.is_active?"Deactivate":"Activate"}</button>
       </div>
-    </div>`).join("")}</div>`;
+    </div>`).join("") || `<div class="empty-state"><i class="fa-solid fa-user-graduate"></i><p>No students found — try a different filter, or add one above.</p></div>`}</div>`;
 }
 function openStudentForm(stu) {
   openModal(`<h3>${stu ? "Edit" : "Add"} Student</h3>
@@ -523,9 +585,23 @@ async function saveFeeRow(studentId, classId, termId) {
 async function renderSettings() {
   const el = document.getElementById("panel-settings");
   const s = state.schoolSettings;
-  let html = "";
+  let html = `
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Settings</h1>
+        <p>School profile, admission scheme, term/session, and your own account.</p>
+      </div>
+    </div>`;
   if (state.role === "admin") {
-    html += `<div class="settings-card">
+    html += `<div class="tab-bar no-print" style="overflow-x:auto;">
+      <button class="tab-bar-item" onclick="document.getElementById('set-profile').scrollIntoView({behavior:'smooth'})">Profile</button>
+      <button class="tab-bar-item" onclick="document.getElementById('set-signatures').scrollIntoView({behavior:'smooth'})">Signatures</button>
+      <button class="tab-bar-item" onclick="document.getElementById('set-admission').scrollIntoView({behavior:'smooth'})">Admission</button>
+      <button class="tab-bar-item" onclick="document.getElementById('set-terms').scrollIntoView({behavior:'smooth'})">Terms</button>
+      <button class="tab-bar-item" onclick="document.getElementById('set-security').scrollIntoView({behavior:'smooth'})">Security</button>
+      <button class="tab-bar-item" onclick="document.getElementById('set-account').scrollIntoView({behavior:'smooth'})">My Account</button>
+    </div>`;
+    html += `<div class="settings-card" id="set-profile">
       <div class="settings-card-title">School Profile</div>
       <div class="field"><label>School Name</label><input id="setSchoolName" value="${s.school_name||""}"/></div>
       <div class="field"><label>Motto</label><input id="setMotto" value="${s.motto||""}"/></div>
@@ -546,7 +622,7 @@ async function renderSettings() {
       <p style="font-size:11px;color:var(--dash-muted);margin-top:-6px;">On postimages.org, use the "Direct link" URL (ends in .jpg/.png), not the page link.</p>
       <button class="btn btn-green" onclick="saveSchoolSettings()">Save</button>
     </div>
-    <div class="settings-card">
+    <div class="settings-card" id="set-signatures">
       <div class="settings-card-title">Report Card Signatures (fallback)</div>
       <p style="font-size:12px;color:var(--dash-muted);">These print on report cards only when no staff member currently holds that position in Staff Directory — if a Headmaster/Principal/Admin Officer exists there, their own name and signature (set on their staff profile) are used instead of these.</p>
       <div class="field"><label>Headmaster Name</label><input id="setHeadmasterName" value="${s.headmaster_fallback_name||""}"/></div>
@@ -566,7 +642,7 @@ async function renderSettings() {
       </div>
       <button class="btn btn-green" onclick="saveSignatureSettings()">Save Signatures</button>
     </div>
-    <div class="settings-card">
+    <div class="settings-card" id="set-admission">
       <div class="settings-card-title">Registrar Admission Number Scheme</div>
       <p style="font-size:12px;color:var(--dash-muted);">Controls the automatic admission number registrars get when registering a new student (e.g. prefix "SU2026" + next number "27" → next registration gets SU20260027). After a bulk ID reset, update the next number here so new registrations don't collide with existing ones.</p>
       <div class="field"><label>Prefix</label><input id="setAdmPrefix" value="${s.student_admission_prefix||"SU"}"/></div>
@@ -584,14 +660,14 @@ async function renderSettings() {
       </div>
       <div id="admCheckResult" style="margin-top:8px;font-size:13px;font-weight:800;"></div>
     </div>
-    <div class="settings-card">
+    <div class="settings-card" id="set-terms">
       <div class="settings-card-title">Term Dates</div>
       <p style="font-size:12px;color:var(--dash-muted);">These dates print on every report card (Resumption Date, Closing Date, and the auto-calculated Holidays Duration).</p>
       <div class="field"><label>Term</label><select id="setDatesTerm" onchange="loadTermDatesForm()">
         ${state.terms.map(t => `<option value="${t.id}">${t.name}</option>`).join("")}</select></div>
       <div id="termDatesFormBody"></div>
     </div>
-    <div class="settings-card">
+    <div class="settings-card" id="set-security">
       <div class="settings-card-title">Security PINs</div>
       <div class="field"><label>PIN Type</label><select id="pinType">
         <option value="fees">Fees</option><option value="teachers">Teachers</option>
@@ -607,7 +683,7 @@ async function renderSettings() {
       <button class="btn btn-green" onclick="setActiveTermFn()">Set Active Term</button>
     </div>`;
   }
-  html += `<div class="settings-card">
+  html += `<div class="settings-card" id="set-account">
     <div class="settings-card-title">My Account</div>
     <div class="settings-row"><span>Name</span><span>${state.staff?.full_name || state.student?.full_name || "—"}</span></div>
     ${state.staff ? `<div class="settings-row"><span>My Salary Status (${state.terms.find(t=>t.id===state.currentTermId)?.name||"This Term"})</span><span id="mySalaryStatus">Loading…</span></div>` : ""}
@@ -620,12 +696,18 @@ async function renderSettings() {
 }
 async function loadMySalaryStatus() {
   const { data } = await sb.from("staff").select("salary_status").eq("id", state.staff.id).single();
-  const status = (data?.salary_status || {})[state.currentTermId] || null;
   const el = document.getElementById("mySalaryStatus");
   if (!el) return;
-  el.innerHTML = status === "Paid" ? `<span style="color:#22c55e;font-weight:800;">✔ Paid</span>`
-    : status === "Unpaid" ? `<span style="color:#ef4444;font-weight:800;">✘ Unpaid</span>`
-    : `<span style="color:var(--dash-muted);">Not recorded yet</span>`;
+  // salary_status is keyed "<termId>_1"/"_2"/"_3" (one bool per month
+  // of the term) — matches the Salary Tracker's own format. Derive
+  // the same Fully Paid / Partial / Unpaid verdict here.
+  const ss = data?.salary_status || {};
+  const months = [1,2,3].map(m => ss[`${state.currentTermId}_${m}`] === true);
+  const allPaid = months.every(Boolean);
+  const nonePaid = months.every(v => !v);
+  el.innerHTML = allPaid ? `<span class="badge badge-success">✔ Fully Paid</span>`
+    : nonePaid ? `<span class="badge badge-neutral">Not recorded yet</span>`
+    : `<span class="badge badge-warning">◐ Partial (${months.filter(Boolean).length}/3 months)</span>`;
 }
 async function saveAdmissionScheme() {
   const student_admission_prefix = document.getElementById("setAdmPrefix").value.trim();

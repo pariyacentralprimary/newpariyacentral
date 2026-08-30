@@ -4,6 +4,12 @@
 async function renderClassManagement() {
   const el = document.getElementById("panel-classManagement");
   el.innerHTML = `
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Manage Classes</h1>
+        <p>Add, edit, or delete classes — name, category, sort order, and graduating-class flag.</p>
+      </div>
+    </div>
     <div class="settings-card">
       <div class="settings-card-title">Add a Class</div>
       <div class="field"><label>Class Name</label><input id="clsName" placeholder="e.g. SS 3"/></div>
@@ -25,7 +31,10 @@ async function loadClassesListMgmt() {
     <div class="class-card" style="cursor:default;">
       <div class="cc-icon">${c.icon||"📚"}</div>
       <div class="cc-name">${c.name}</div>
-      <div class="cc-sub">${c.category.toUpperCase()}${c.is_graduating_class?" · Graduating":""}</div>
+      <div style="display:flex;gap:5px;justify-content:center;flex-wrap:wrap;margin:6px 0;">
+        <span class="badge badge-info">${c.category.toUpperCase()}</span>
+        ${c.is_graduating_class ? `<span class="badge badge-warning">🎓 Graduating</span>` : ""}
+      </div>
       <div style="display:flex;gap:6px;margin-top:8px;">
         <button class="btn" style="flex:1;" onclick='editClass(${JSON.stringify(c).replace(/'/g,"&apos;")})'>Edit</button>
         <button class="btn btn-danger" onclick="deleteClass('${c.id}','${c.name.replace(/'/g,"&apos;")}')">Delete</button>
@@ -82,13 +91,21 @@ async function deleteClass(id, name) {
 async function renderTransferStudents() {
   const el = document.getElementById("panel-transferStudents");
   el.innerHTML = `
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Transfer Students</h1>
+        <p>Select students → choose the destination class → review → transfer. Past score history stays linked to their old class.</p>
+      </div>
+    </div>
     <div class="settings-card">
-      <div class="field"><label>From Class</label><select id="trFromClass" onchange="loadTransferStudentList()">
-        <option value="">— choose —</option>
-        ${state.classes.map(c => `<option value="${c.id}">${c.name}</option>`).join("")}</select></div>
-      <div class="field"><label>To Class</label><select id="trToClass">
-        <option value="">— choose —</option>
-        ${state.classes.map(c => `<option value="${c.id}">${c.name}</option>`).join("")}</select></div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;">
+        <div class="field" style="flex:1;min-width:200px;"><label>1. From Class</label><select id="trFromClass" onchange="loadTransferStudentList()">
+          <option value="">— choose —</option>
+          ${state.classes.map(c => `<option value="${c.id}">${c.name}</option>`).join("")}</select></div>
+        <div class="field" style="flex:1;min-width:200px;"><label>2. To Class</label><select id="trToClass">
+          <option value="">— choose —</option>
+          ${state.classes.map(c => `<option value="${c.id}">${c.name}</option>`).join("")}</select></div>
+      </div>
       <div id="trStudentList"></div>
     </div>`;
 }
@@ -97,7 +114,7 @@ async function loadTransferStudentList() {
   const host = document.getElementById("trStudentList");
   if (!classId) { host.innerHTML = ""; return; }
   const { data: students } = await sb.from("students").select("id, full_name, admission_no").eq("class_id", classId).eq("is_active", true).order("full_name");
-  if (!students || !students.length) { host.innerHTML = `<p style="color:var(--dash-muted);">No active students in this class.</p>`; return; }
+  if (!students || !students.length) { host.innerHTML = `<div class="empty-state"><i class="fa-solid fa-people-group"></i><p>No active students in this class.</p></div>`; return; }
   host.innerHTML = `
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;margin:12px 0;">
       <input type="checkbox" id="trSelectAll" onchange="document.querySelectorAll('.trStuCheck').forEach(c=>c.checked=this.checked)"/> Select All (${students.length})
@@ -129,10 +146,16 @@ async function doTransfer() {
 async function renderScoreControl() {
   const el = document.getElementById("panel-scoreControl");
   el.innerHTML = `
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Score Control</h1>
+        <p>Open or close each assessment window per term, and approve/deny teachers' unlock requests.</p>
+      </div>
+    </div>
     <div class="settings-card">
       <div class="settings-card-title">Assessment Period Windows</div>
       <p style="font-size:12px;color:var(--dash-muted);">Open a period so teachers can enter/submit scores for it. Once a teacher submits a subject for an open period, it locks automatically until you approve an unlock.</p>
-      <div class="field"><label>Term</label><select id="scTermSelect" onchange="loadScoreControlPanel()">
+      <div class="field" style="max-width:280px;"><label>Term</label><select id="scTermSelect" onchange="loadScoreControlPanel()">
         ${state.terms.map(t => `<option value="${t.id}" ${t.id===state.currentTermId?"selected":""}>${t.name}</option>`).join("")}</select></div>
       <div id="scWindowsBody"></div>
     </div>
@@ -148,14 +171,16 @@ async function loadScoreControlPanel() {
   const { data: windows } = await sb.from("term_period_windows").select("*").eq("term_id", termId);
   const windowMap = {}; (windows||[]).forEach(w => windowMap[w.period] = w);
   const periods = [["ca1","CA1"],["ca2","CA2"],["ca3","CA3"],["exam","Exam"]];
-  document.getElementById("scWindowsBody").innerHTML = periods.map(([p,label]) => {
+  document.getElementById("scWindowsBody").innerHTML = `<div class="card-grid">${periods.map(([p,label]) => {
     const w = windowMap[p];
     const open = w?.is_open;
-    return `<div class="settings-row"><span>${label}</span>
-      <button class="btn ${open ? "btn-danger" : "btn-green"}" onclick="togglePeriodWindow('${termId}','${p}',${!open})">
+    return `<div class="class-card" style="cursor:default;">
+      <div class="cc-name" style="text-align:left;">${label}</div>
+      <div style="margin:8px 0;"><span class="badge ${open ? "badge-success" : "badge-neutral"}">${open ? "🟢 Open" : "⚪ Closed"}</span></div>
+      <button class="btn ${open ? "btn-danger" : "btn-green"}" style="width:100%;" onclick="togglePeriodWindow('${termId}','${p}',${!open})">
         ${open ? "Close" : "Open"} ${label}
       </button></div>`;
-  }).join("");
+  }).join("")}</div>`;
 }
 async function togglePeriodWindow(termId, period, openIt) {
   const payload = { term_id: termId, period, is_open: openIt };
@@ -169,17 +194,19 @@ async function loadUnlockRequests() {
   const { data: requests } = await sb.from("score_unlock_requests")
     .select("*, classes(name), subjects(name), staff(full_name)").eq("status", "pending").order("requested_at", { ascending: false });
   const host = document.getElementById("scRequestsBody");
-  if (!requests || !requests.length) { host.innerHTML = `<p style="color:var(--dash-muted);">No pending requests.</p>`; return; }
+  if (!requests || !requests.length) { host.innerHTML = `<div class="empty-state"><i class="fa-solid fa-circle-check"></i><p>No pending requests — you're all caught up.</p></div>`; return; }
   const { data: studentsAll } = await sb.from("students").select("id, full_name");
   const nameOf = {}; (studentsAll||[]).forEach(s => nameOf[s.id] = s.full_name);
   host.innerHTML = requests.map(r => `
-    <div class="settings-card" style="background:var(--dash-surface);">
-      <div style="font-weight:800;">${r.staff.full_name} — ${r.subjects.name} (${r.classes.name}, ${r.period.toUpperCase()})</div>
+    <div class="settings-card" style="background:var(--dash-surface);border-left:3px solid var(--dash-green);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">
+        <div style="font-weight:800;">${r.staff.full_name} — ${r.subjects.name} <span class="badge badge-info">${r.classes.name} · ${r.period.toUpperCase()}</span></div>
+      </div>
       <div style="font-size:12px;color:var(--dash-muted);margin:6px 0;">Students: ${r.student_ids.map(id => nameOf[id]||id).join(", ")}</div>
       <div style="font-size:12px;margin-bottom:10px;">Reason: ${r.reason || "—"}</div>
       <div style="display:flex;gap:8px;">
-        <button class="btn btn-green" onclick="resolveRequest('${r.id}', true)">Approve</button>
-        <button class="btn btn-danger" onclick="resolveRequest('${r.id}', false)">Deny</button>
+        <button class="btn btn-green" onclick="resolveRequest('${r.id}', true)"><i class="fa-solid fa-check"></i> Approve</button>
+        <button class="btn btn-danger" onclick="resolveRequest('${r.id}', false)"><i class="fa-solid fa-xmark"></i> Deny</button>
       </div>
     </div>`).join("");
 }

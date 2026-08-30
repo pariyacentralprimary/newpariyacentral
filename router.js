@@ -25,6 +25,7 @@ const TAB_TO_ROUTE = {
   transferStudents: "/transfer-students", scoreControl: "/score-control",
   printReports: "/print-reports", unassignedStudents: "/unassigned-students",
   settings: "/settings", myReport: "/my-report", registerStudent: "/register-student",
+  assessments: "/assessments", examsTests: "/exams-tests", homework: "/assignments", announcements: "/announcements",
 };
 const ROUTE_TO_TAB = Object.fromEntries(Object.entries(TAB_TO_ROUTE).map(([k, v]) => [v, k]));
 

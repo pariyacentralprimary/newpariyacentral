@@ -8,6 +8,8 @@ const NAV_BY_ROLE = {
     ["staffDirectory","fa-user-tie","Staff Directory"], ["students","fa-user-graduate","Students"],
     ["timetable","fa-calendar-days","Timetable"], ["certificates","fa-award","Certificates & Awards"],
     ["analytics","fa-chart-line","Analytics"], ["catracker","fa-list-check","CA Tracker"],
+    ["assessments","fa-file-circle-question","Exams & Tests"], ["homework","fa-book-open","Assignments"],
+    ["announcements","fa-bullhorn","Announcements"],
     ["fees","fa-money-bill","Fees"], ["websites","fa-globe","School Websites"],
     ["importTool","fa-file-import","Bulk Import"], ["classManagement","fa-school","Manage Classes"],
     ["salaryTracker","fa-money-check-dollar","Salary Tracker"],
@@ -15,11 +17,11 @@ const NAV_BY_ROLE = {
     ["printReports","fa-print","Print Report Cards"], ["unassignedStudents","fa-user-slash","Unassigned Students"],
     ["settings","fa-gear","Settings"],
   ],
-  headmaster: [["dashboard","fa-gauge","Dashboard"], ["classes","fa-chalkboard","Classes & Scores"], ["masterlist","fa-list","Master List"], ["certificates","fa-award","Certificates & Awards"], ["printReports","fa-print","Print Report Cards"], ["settings","fa-gear","My Profile"]],
-  principal: [["dashboard","fa-gauge","Dashboard"], ["classes","fa-chalkboard","Classes & Scores"], ["masterlist","fa-list","Master List"], ["certificates","fa-award","Certificates & Awards"], ["printReports","fa-print","Print Report Cards"], ["settings","fa-gear","My Profile"]],
+  headmaster: [["dashboard","fa-gauge","Dashboard"], ["classes","fa-chalkboard","Classes & Scores"], ["masterlist","fa-list","Master List"], ["certificates","fa-award","Certificates & Awards"], ["assessments","fa-file-circle-question","Exams & Tests"], ["announcements","fa-bullhorn","Announcements"], ["printReports","fa-print","Print Report Cards"], ["settings","fa-gear","My Profile"]],
+  principal: [["dashboard","fa-gauge","Dashboard"], ["classes","fa-chalkboard","Classes & Scores"], ["masterlist","fa-list","Master List"], ["certificates","fa-award","Certificates & Awards"], ["assessments","fa-file-circle-question","Exams & Tests"], ["announcements","fa-bullhorn","Announcements"], ["printReports","fa-print","Print Report Cards"], ["settings","fa-gear","My Profile"]],
   bursar: [["fees","fa-money-bill","Fees"], ["settings","fa-gear","My Profile"]],
-  teacher: [["dashboard","fa-gauge","Dashboard"], ["classes","fa-chalkboard","My Classes"], ["masterlist","fa-list","Master List"], ["settings","fa-gear","My Profile"]],
-  student: [["myReport","fa-file-lines","My Report Card"], ["settings","fa-gear","My Profile"]],
+  teacher: [["dashboard","fa-gauge","Dashboard"], ["classes","fa-chalkboard","My Classes"], ["masterlist","fa-list","Master List"], ["assessments","fa-file-circle-question","Exams & Tests"], ["homework","fa-book-open","Assignments"], ["announcements","fa-bullhorn","Announcements"], ["settings","fa-gear","My Profile"]],
+  student: [["myReport","fa-file-lines","My Report Card"], ["examsTests","fa-file-circle-question","Exams / Tests"], ["homework","fa-book-open","Assignments"], ["announcements","fa-bullhorn","Announcements"], ["settings","fa-gear","My Profile"]],
   registrar: [["registerStudent","fa-user-plus","Register Student"], ["masterlist","fa-list","Master List"], ["settings","fa-gear","My Profile"]],
 };
 const TAB_TITLES = { dashboard:"Dashboard", classes:"Classes & Scores", masterlist:"Master List", assignments:"Curriculum & Assignments",
@@ -27,7 +29,7 @@ const TAB_TITLES = { dashboard:"Dashboard", classes:"Classes & Scores", masterli
   analytics:"Analytics", catracker:"CA Tracker", fees:"Fees", websites:"School Websites", importTool:"Bulk Import",
   classManagement:"Manage Classes", transferStudents:"Transfer Students", scoreControl:"Score Control",
   printReports:"Print Report Cards", unassignedStudents:"Unassigned Students", salaryTracker:"Salary Tracker",
-  registerStudent:"Register Student",
+  registerStudent:"Register Student", assessments:"Exams & Tests", examsTests:"Exams / Tests", homework:"Assignments", announcements:"Announcements",
   settings:"Settings", myReport:"My Report Card" };
 
 // Visual grouping only — purely cosmetic ordering/labelling in the
@@ -36,6 +38,7 @@ const TAB_TITLES = { dashboard:"Dashboard", classes:"Classes & Scores", masterli
 const NAV_GROUPS = [
   { label: "Overview", tabs: ["dashboard", "analytics", "catracker"] },
   { label: "Academic", tabs: ["classes", "assignments", "timetable", "scoreControl", "printReports"] },
+  { label: "Learning", tabs: ["assessments", "examsTests", "homework", "announcements"] },
   { label: "Students", tabs: ["students", "masterlist", "transferStudents", "unassignedStudents", "registerStudent"] },
   { label: "Staff", tabs: ["staffDirectory", "salaryTracker"] },
   { label: "Finance", tabs: ["fees"] },
@@ -119,7 +122,8 @@ function renderTab(id) {
     analytics: renderAnalytics, catracker: renderCaTracker, websites: renderWebsites, importTool: renderImportTool,
     classManagement: renderClassManagement, transferStudents: renderTransferStudents, scoreControl: renderScoreControl,
     printReports: renderPrintReports, registerStudent: renderRegisterStudent, unassignedStudents: renderUnassignedStudents,
-    salaryTracker: renderSalaryTracker };
+    salaryTracker: renderSalaryTracker, assessments: renderAssessmentsAdmin, examsTests: renderExamsTestsStudent,
+    homework: renderHomework, announcements: renderAnnouncements };
   (renderers[id] || (() => { document.getElementById(`panel-${id}`).innerHTML = "Coming soon."; }))();
 }
 
@@ -1032,7 +1036,8 @@ async function doRegisterStudent() {
 }
 async function renderMyReport() {
   const el = document.getElementById("panel-myReport");
-  el.innerHTML = `<div class="term-pills" id="myTermPills"></div><div id="myReportHost"></div>`;
+  el.innerHTML = `<div id="myAnnouncementsWidget" style="margin-bottom:16px;"></div><div class="term-pills" id="myTermPills"></div><div id="myReportHost"></div>`;
+  renderAnnouncementsWidget("myAnnouncementsWidget");
   document.getElementById("myTermPills").innerHTML = state.terms.map(t =>
     `<div class="term-pill ${t.id===state.currentTermId?'active':''}" onclick="loadMyReport('${t.id}')">${t.name}</div>`).join("");
   await loadMyReport(state.currentTermId);

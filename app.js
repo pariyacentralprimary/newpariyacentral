@@ -194,6 +194,7 @@ async function loadReferenceData() {
 
   document.getElementById("loginSchoolName").textContent = state.schoolSettings.school_name || "Pariya Central Primary";
   document.getElementById("sidebarSchoolName").textContent = state.schoolSettings.school_name || "Pariya Central Primary";
+  applyDashboardTheme(state.schoolSettings.dashboard_theme || "chocolate");
 }
 
 function showAppShell(show) {

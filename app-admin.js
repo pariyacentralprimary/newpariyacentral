@@ -598,6 +598,7 @@ async function renderSettings() {
       <button class="tab-bar-item" onclick="document.getElementById('set-signatures').scrollIntoView({behavior:'smooth'})">Signatures</button>
       <button class="tab-bar-item" onclick="document.getElementById('set-admission').scrollIntoView({behavior:'smooth'})">Admission</button>
       <button class="tab-bar-item" onclick="document.getElementById('set-terms').scrollIntoView({behavior:'smooth'})">Terms</button>
+      <button class="tab-bar-item" onclick="document.getElementById('set-theme').scrollIntoView({behavior:'smooth'})">Theme</button>
       <button class="tab-bar-item" onclick="document.getElementById('set-security').scrollIntoView({behavior:'smooth'})">Security</button>
       <button class="tab-bar-item" onclick="document.getElementById('set-account').scrollIntoView({behavior:'smooth'})">My Account</button>
     </div>`;
@@ -667,6 +668,7 @@ async function renderSettings() {
         ${state.terms.map(t => `<option value="${t.id}">${t.name}</option>`).join("")}</select></div>
       <div id="termDatesFormBody"></div>
     </div>
+    ${renderDashboardThemePicker()}
     <div class="settings-card" id="set-security">
       <div class="settings-card-title">Security PINs</div>
       <div class="field"><label>PIN Type</label><select id="pinType">

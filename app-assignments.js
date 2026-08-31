@@ -23,7 +23,7 @@ async function renderHomeworkStaff() {
   const pairs = await getMyAssessableClassSubjects();
   const body = document.getElementById("hwStaffBody");
   if (!pairs.length) {
-    body.innerHTML = `<div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i><p>You have no class/subject assignments yet — ask an admin to assign you in Curriculum &amp; Assignments first.</p></div>`;
+    body.innerHTML = `<div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i><p>You have no class/subject assignments yet — ask an admin to assign you in Curriculum first.</p></div>`;
     return;
   }
   body.innerHTML = `

@@ -9,7 +9,7 @@ async function renderAssignments() {
   el.innerHTML = `
     <div class="page-header">
       <div class="page-header-text">
-        <h1>Curriculum &amp; Assignments</h1>
+        <h1>Curriculum</h1>
         <p>This is where you assign teachers/staff to a class + subject, assign subjects to classes, and manage the subject list.</p>
       </div>
     </div>

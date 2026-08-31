@@ -14,6 +14,9 @@ async function renderAnnouncements() {
 async function renderAnnouncementsStaff() {
   const el = document.getElementById("panel-announcements");
   const canPostBroad = (state.allRoles||[state.role]).some(r => ["admin","headmaster","principal"].includes(r));
+  const pairs = canPostBroad ? null : await getMyAssessableClassSubjects();
+  const myClasses = canPostBroad ? state.classes : [...new Map((pairs||[]).map(p => [p.class_id, { id: p.class_id, name: p.class_name }])).values()];
+  const mySubjects = canPostBroad ? state.subjects : [...new Map((pairs||[]).map(p => [p.subject_id, { id: p.subject_id, name: p.subject_name }])).values()];
   el.innerHTML = `
     <div class="page-header">
       <div class="page-header-text">
@@ -35,17 +38,17 @@ async function renderAnnouncementsStaff() {
           </select></div>
         <div class="field" style="flex:1;min-width:180px;"><label>Audience</label>
           <select id="anTargetType" onchange="toggleAnnouncementTargetFields()">
-            <option value="class">Specific Class</option>
-            <option value="subject">Specific Subject</option>
+            <option value="class">${canPostBroad ? "Specific Class" : "My Class"}</option>
+            <option value="subject">${canPostBroad ? "Specific Subject" : "My Subject"}</option>
             ${canPostBroad ? `<option value="all">All Students</option>
             <option value="nursery">Nursery Only</option><option value="primary">Primary Only</option>
             <option value="jss">JSS Only</option><option value="ss">SS Only</option>` : ""}
           </select></div>
       </div>
       <div id="anTargetClassField" class="field"><label>Class</label>
-        <select id="anTargetClass">${state.classes.map(c => `<option value="${c.id}">${c.name}</option>`).join("")}</select></div>
+        <select id="anTargetClass">${myClasses.map(c => `<option value="${c.id}">${c.name}</option>`).join("") || `<option value="">No classes assigned to you yet</option>`}</select></div>
       <div id="anTargetSubjectField" class="field" style="display:none;"><label>Subject</label>
-        <select id="anTargetSubject">${state.subjects.map(s => `<option value="${s.id}">${s.name}</option>`).join("")}</select></div>
+        <select id="anTargetSubject">${mySubjects.map(s => `<option value="${s.id}">${s.name}</option>`).join("") || `<option value="">No subjects assigned to you yet</option>`}</select></div>
       <button class="btn btn-green" onclick="postAnnouncement()"><i class="fa-solid fa-bullhorn"></i> Post Announcement</button>
     </div>
     <div class="settings-card-title" style="margin:18px 0 10px;">All Announcements</div>

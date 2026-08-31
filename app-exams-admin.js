@@ -56,7 +56,7 @@ async function loadAssessmentsManageTab() {
   panel.innerHTML = "Loading…";
   const pairs = await getMyAssessableClassSubjects();
   if (!pairs.length) {
-    panel.innerHTML = `<div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i><p>You have no class/subject assignments yet — ask an admin to assign you in Curriculum &amp; Assignments first.</p></div>`;
+    panel.innerHTML = `<div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i><p>You have no class/subject assignments yet — ask an admin to assign you in Curriculum first.</p></div>`;
     return;
   }
   panel.innerHTML = `

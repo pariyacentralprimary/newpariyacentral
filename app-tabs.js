@@ -241,14 +241,14 @@ async function loadClassScoreGrid() {
 
   const [{ data: students }, { data: classSubjects }, { data: scores }, { data: windows }, { data: liveRanks }] = await Promise.all([
     sb.from("students").select("id, full_name, admission_no").eq("class_id", classId).eq("is_active", true).order("full_name"),
-    sb.from("class_subjects").select("subject_id, subjects(id,name)").eq("class_id", classId),
+    sb.from("class_subjects").select("subject_id, subjects(id,name,sort_order)").eq("class_id", classId),
     sb.from("student_scores").select("*").eq("class_id", classId).eq("term_id", termId),
     sb.from("term_period_windows").select("*").eq("term_id", termId),
     sb.rpc("get_class_subject_ranks", { p_class_id: classId, p_term_id: termId }),
   ]);
   const rankMap = {}; (liveRanks || []).forEach(r => { rankMap[r.subject_id + "_" + r.student_id] = r.position_label; });
 
-  let subjectList = (classSubjects || []).map(cs => cs.subjects);
+  let subjectList = (classSubjects || []).map(cs => cs.subjects).sort((a,b) => (a.sort_order ?? 99) - (b.sort_order ?? 99));
   const roles = state.allRoles || [state.role];
   if (roles.includes("teacher") && !roles.some(r => ["admin","headmaster","principal"].includes(r))) {
     const { data: mySubs } = await sb.from("class_teacher_subjects").select("subject_id").eq("staff_id", state.staff.id).eq("class_id", classId);
@@ -535,7 +535,7 @@ async function buildReportCardHtml(studentId, termId, shared = null) {
     const results = await Promise.all([
       sb.from("students").select("id, admission_no, full_name, class_id, gender, date_of_birth, guardian_name, guardian_phone, is_active, classes(name,category)").eq("id", studentId).single(),
       sb.from("student_term_summary").select("*").eq("student_id", studentId).eq("term_id", termId).maybeSingle(),
-      sb.from("student_scores").select("*, subjects(name)").eq("student_id", studentId).eq("term_id", termId),
+      sb.from("student_scores").select("*, subjects(name, sort_order)").eq("student_id", studentId).eq("term_id", termId),
       sb.from("terms").select("*, sessions(label)").eq("id", termId).single(),
     ]);
     if (results[0].error) console.error("Report card: failed to load student:", results[0].error.message);
@@ -568,7 +568,8 @@ async function buildReportCardHtml(studentId, termId, shared = null) {
 
   let subjRows = "";
   let subjNo = 0;
-  for (const s of (scores || [])) {
+  const orderedScores = (scores || []).slice().sort((a, b) => (a.subjects.sort_order ?? 99) - (b.subjects.sort_order ?? 99));
+  for (const s of orderedScores) {
     subjNo++;
     const anyEntered = s.ca1 !== null || s.ca2 !== null || s.ca3 !== null || s.exam_score !== null;
     const total = (s.ca1||0)+(s.ca2||0)+(isNurseryPrimary?0:(s.ca3||0))+(s.exam_score||0);
@@ -855,7 +856,7 @@ async function loadBulkReportCards() {
     sb.from("staff").select("full_name, signature_url, positions").contains("positions", [wantPosition]),
     sb.from("staff").select("full_name, signature_url").contains("positions", ["Admin Officer"]),
     sb.from("terms").select("*, sessions(label)").eq("id", termId).single(),
-    sb.from("student_scores").select("*, subjects(name)").eq("class_id", classId).eq("term_id", termId),
+    sb.from("student_scores").select("*, subjects(name, sort_order)").eq("class_id", classId).eq("term_id", termId),
     sb.from("student_term_summary").select("*").eq("class_id", classId).eq("term_id", termId),
   ]);
 

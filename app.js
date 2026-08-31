@@ -179,7 +179,7 @@ async function bootAfterLogin() {
 async function loadReferenceData() {
   const [{ data: classes }, { data: subjects }, { data: terms }, { data: sessions }, { data: settings }] = await Promise.all([
     sb.from("classes").select("*").order("sort_order"),
-    sb.from("subjects").select("*").order("name"),
+    sb.from("subjects").select("*").order("sort_order"),
     sb.from("terms").select("*, sessions(label)").order("order_index"),
     sb.from("sessions").select("*"),
     sb.from("school_settings").select("*").single(),

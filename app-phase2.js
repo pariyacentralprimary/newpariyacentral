@@ -37,6 +37,7 @@ async function renderAssignments() {
     </div>
     <div class="settings-card">
       <div class="settings-card-title">Subjects (school-wide list)</div>
+      <p style="font-size:12px;color:var(--dash-muted);">This order is exactly the order subjects appear on the report card — use the ↑↓ arrows to arrange them (1st, 2nd, 3rd…), not alphabetically.</p>
       <div id="subjectsList" class="pill-list"></div>
       <div class="field" style="margin-top:12px;display:flex;gap:8px;">
         <input id="newSubjectName" placeholder="e.g. Mathematics" style="flex:1;"/>
@@ -48,13 +49,27 @@ async function renderAssignments() {
 }
 
 async function loadSubjectsList() {
-  const { data: subjects } = await sb.from("subjects").select("*").order("name");
+  const { data: subjects } = await sb.from("subjects").select("*").order("sort_order");
   state.subjects = subjects || [];
-  document.getElementById("subjectsList").innerHTML = (subjects||[]).map(s =>
-    `<span class="tag">${s.name}
-      <button onclick="renameSubject('${s.id}','${s.name.replace(/'/g,"&apos;")}')" title="Rename"><i class="fa-solid fa-pen"></i></button>
-      <button onclick="removeSubject('${s.id}')" title="Remove"><i class="fa-solid fa-xmark"></i></button></span>`
-  ).join("") || `<span style="color:var(--dash-muted);font-size:12px;">No subjects yet — add one below.</span>`;
+  document.getElementById("subjectsList").innerHTML = (subjects||[]).length ? `<div style="border:1px solid var(--dash-border);border-radius:8px;overflow:hidden;">
+    ${subjects.map((s,i) => `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;${i>0?"border-top:1px solid var(--dash-border);":""}">
+      <span class="badge badge-info" style="min-width:26px;justify-content:center;">${i+1}</span>
+      <span style="flex:1;font-weight:700;">${s.name}</span>
+      <button class="btn" style="padding:4px 8px;font-size:11px;" ${i===0?"disabled":""} onclick="moveSubject('${s.id}',-1)" title="Move up"><i class="fa-solid fa-arrow-up"></i></button>
+      <button class="btn" style="padding:4px 8px;font-size:11px;" ${i===subjects.length-1?"disabled":""} onclick="moveSubject('${s.id}',1)" title="Move down"><i class="fa-solid fa-arrow-down"></i></button>
+      <button class="btn" style="padding:4px 8px;font-size:11px;" onclick="renameSubject('${s.id}','${s.name.replace(/'/g,"&apos;")}')" title="Rename"><i class="fa-solid fa-pen"></i></button>
+      <button class="btn btn-danger" style="padding:4px 8px;font-size:11px;" onclick="removeSubject('${s.id}')" title="Remove"><i class="fa-solid fa-xmark"></i></button>
+    </div>`).join("")}
+  </div>` : `<span style="color:var(--dash-muted);font-size:12px;">No subjects yet — add one below.</span>`;
+}
+async function moveSubject(subjectId, direction) {
+  const { data: subjects } = await sb.from("subjects").select("id, sort_order").order("sort_order");
+  const idx = subjects.findIndex(s => s.id === subjectId);
+  const swapIdx = idx + direction;
+  if (swapIdx < 0 || swapIdx >= subjects.length) return;
+  await sb.from("subjects").update({ sort_order: subjects[swapIdx].sort_order }).eq("id", subjects[idx].id);
+  await sb.from("subjects").update({ sort_order: subjects[idx].sort_order }).eq("id", subjects[swapIdx].id);
+  loadSubjectsList();
 }
 async function renameSubject(id, currentName) {
   const newName = prompt("Rename subject:", currentName);

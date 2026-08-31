@@ -15,7 +15,7 @@ async function renderHomeworkStaff() {
   el.innerHTML = `
     <div class="page-header">
       <div class="page-header-text">
-        <h1>Assignments</h1>
+        <h1>Homework</h1>
         <p>Create assignments for your classes, and review what's been submitted.</p>
       </div>
     </div>
@@ -115,7 +115,7 @@ async function renderHomeworkStudent() {
   el.innerHTML = `
     <div class="page-header">
       <div class="page-header-text">
-        <h1>Assignments</h1>
+        <h1>Homework</h1>
         <p>Everything assigned to your class this term.</p>
       </div>
     </div>

@@ -8,7 +8,7 @@ const NAV_BY_ROLE = {
     ["staffDirectory","fa-user-tie","Staff Directory"], ["students","fa-user-graduate","Students"],
     ["timetable","fa-calendar-days","Timetable"], ["certificates","fa-award","Certificates & Awards"],
     ["analytics","fa-chart-line","Analytics"], ["catracker","fa-list-check","CA Tracker"],
-    ["assessments","fa-file-circle-question","Exams & Tests"], ["homework","fa-book-open","Assignments"],
+    ["assessments","fa-file-circle-question","Exams & Tests"], ["homework","fa-book-open","Homework"],
     ["announcements","fa-bullhorn","Announcements"],
     ["fees","fa-money-bill","Fees"], ["websites","fa-globe","School Websites"],
     ["importTool","fa-file-import","Bulk Import"], ["classManagement","fa-school","Manage Classes"],
@@ -20,8 +20,8 @@ const NAV_BY_ROLE = {
   headmaster: [["dashboard","fa-gauge","Dashboard"], ["classes","fa-chalkboard","Classes & Scores"], ["masterlist","fa-list","Master List"], ["certificates","fa-award","Certificates & Awards"], ["assessments","fa-file-circle-question","Exams & Tests"], ["announcements","fa-bullhorn","Announcements"], ["printReports","fa-print","Print Report Cards"], ["settings","fa-gear","My Profile"]],
   principal: [["dashboard","fa-gauge","Dashboard"], ["classes","fa-chalkboard","Classes & Scores"], ["masterlist","fa-list","Master List"], ["certificates","fa-award","Certificates & Awards"], ["assessments","fa-file-circle-question","Exams & Tests"], ["announcements","fa-bullhorn","Announcements"], ["printReports","fa-print","Print Report Cards"], ["settings","fa-gear","My Profile"]],
   bursar: [["fees","fa-money-bill","Fees"], ["settings","fa-gear","My Profile"]],
-  teacher: [["dashboard","fa-gauge","Dashboard"], ["classes","fa-chalkboard","My Classes"], ["masterlist","fa-list","Master List"], ["assessments","fa-file-circle-question","Exams & Tests"], ["homework","fa-book-open","Assignments"], ["announcements","fa-bullhorn","Announcements"], ["settings","fa-gear","My Profile"]],
-  student: [["myReport","fa-file-lines","My Report Card"], ["examsTests","fa-file-circle-question","Exams / Tests"], ["homework","fa-book-open","Assignments"], ["announcements","fa-bullhorn","Announcements"], ["settings","fa-gear","My Profile"]],
+  teacher: [["dashboard","fa-gauge","Dashboard"], ["classes","fa-chalkboard","My Classes"], ["masterlist","fa-list","Master List"], ["assessments","fa-file-circle-question","Exams & Tests"], ["homework","fa-book-open","Homework"], ["announcements","fa-bullhorn","Announcements"], ["settings","fa-gear","My Profile"]],
+  student: [["myReport","fa-file-lines","My Report Card"], ["examsTests","fa-file-circle-question","Exams / Tests"], ["homework","fa-book-open","Homework"], ["announcements","fa-bullhorn","Announcements"], ["settings","fa-gear","My Profile"]],
   registrar: [["registerStudent","fa-user-plus","Register Student"], ["masterlist","fa-list","Master List"], ["settings","fa-gear","My Profile"]],
 };
 const TAB_TITLES = { dashboard:"Dashboard", classes:"Classes & Scores", masterlist:"Master List", assignments:"Curriculum & Assignments",
@@ -29,7 +29,7 @@ const TAB_TITLES = { dashboard:"Dashboard", classes:"Classes & Scores", masterli
   analytics:"Analytics", catracker:"CA Tracker", fees:"Fees", websites:"School Websites", importTool:"Bulk Import",
   classManagement:"Manage Classes", transferStudents:"Transfer Students", scoreControl:"Score Control",
   printReports:"Print Report Cards", unassignedStudents:"Unassigned Students", salaryTracker:"Salary Tracker",
-  registerStudent:"Register Student", assessments:"Exams & Tests", examsTests:"Exams / Tests", homework:"Assignments", announcements:"Announcements",
+  registerStudent:"Register Student", assessments:"Exams & Tests", examsTests:"Exams / Tests", homework:"Homework", announcements:"Announcements",
   settings:"Settings", myReport:"My Report Card" };
 
 // Visual grouping only — purely cosmetic ordering/labelling in the

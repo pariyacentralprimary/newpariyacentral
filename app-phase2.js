@@ -10,28 +10,12 @@ async function renderAssignments() {
     <div class="page-header">
       <div class="page-header-text">
         <h1>Curriculum &amp; Assignments</h1>
-        <p>Manage the subject list, which subjects each class takes, and which teacher covers each class + subject.</p>
+        <p>This is where you assign teachers/staff to a class + subject, assign subjects to classes, and manage the subject list.</p>
       </div>
     </div>
-    <div class="settings-card">
-      <div class="settings-card-title">Subjects (school-wide list)</div>
-      <div id="subjectsList" class="pill-list"></div>
-      <div class="field" style="margin-top:12px;display:flex;gap:8px;">
-        <input id="newSubjectName" placeholder="e.g. Mathematics" style="flex:1;"/>
-        <button class="btn btn-green" onclick="addSubject()">Add</button>
-      </div>
-    </div>
-    <div class="settings-card">
-      <div class="settings-card-title">Assign Subjects to a Class</div>
-      <div class="field"><label>Class</label>
-        <select id="csClassSelect" onchange="loadClassSubjectAssign()">
-          <option value="">— choose —</option>
-          ${state.classes.map(c => `<option value="${c.id}">${c.name}</option>`).join("")}
-        </select></div>
-      <div id="csAssignBody"></div>
-    </div>
-    <div class="settings-card">
-      <div class="settings-card-title">Assign a Teacher to Class + Subject</div>
+    <div class="settings-card" style="border:2px solid var(--dash-green);">
+      <div class="settings-card-title">👤 Assign a Teacher to Class + Subject</div>
+      <p style="font-size:12px;color:var(--dash-muted);">This is what puts a teacher in charge of a specific class's specific subject — required before that teacher can enter scores, create tests, or set homework for it.</p>
       <div class="field"><label>Staff</label><select id="taStaffSelect"></select></div>
       <div class="field"><label>Class</label><select id="taClassSelect" onchange="loadTeacherAssignSubjects()">
         <option value="">— choose —</option>
@@ -40,6 +24,24 @@ async function renderAssignments() {
       <div class="field"><label>Subject</label><select id="taSubjectSelect"><option value="">Select a class first</option></select></div>
       <button class="btn btn-green" onclick="addTeacherAssignment()">Assign</button>
       <div id="taCurrentList" style="margin-top:14px;"></div>
+    </div>
+    <div class="settings-card">
+      <div class="settings-card-title">Assign Subjects to a Class</div>
+      <p style="font-size:12px;color:var(--dash-muted);">Which subjects a class takes at all — do this first if a subject isn't showing up in the dropdown above.</p>
+      <div class="field"><label>Class</label>
+        <select id="csClassSelect" onchange="loadClassSubjectAssign()">
+          <option value="">— choose —</option>
+          ${state.classes.map(c => `<option value="${c.id}">${c.name}</option>`).join("")}
+        </select></div>
+      <div id="csAssignBody"></div>
+    </div>
+    <div class="settings-card">
+      <div class="settings-card-title">Subjects (school-wide list)</div>
+      <div id="subjectsList" class="pill-list"></div>
+      <div class="field" style="margin-top:12px;display:flex;gap:8px;">
+        <input id="newSubjectName" placeholder="e.g. Mathematics" style="flex:1;"/>
+        <button class="btn btn-green" onclick="addSubject()">Add</button>
+      </div>
     </div>`;
   await loadSubjectsList();
   await loadStaffOptionsForAssign();

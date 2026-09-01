@@ -66,9 +66,10 @@ async function loadAssessmentsManageTab() {
         <div class="field" style="flex:1;min-width:180px;"><label>Class + Subject</label>
           <select id="caClassSubject">${pairs.map(p => `<option value="${p.class_id}|${p.subject_id}">${p.class_name} — ${p.subject_name}</option>`).join("")}</select></div>
         <div class="field" style="flex:1;min-width:150px;"><label>Assessment Type</label>
-          <select id="caType"><option value="ca1">CA1</option><option value="ca2">CA2</option><option value="ca3">CA3</option><option value="exam">Exam</option></select></div>
+          <select id="caType" onchange="checkTitleTypeMismatch()"><option value="ca1">CA1</option><option value="ca2">CA2</option><option value="ca3">CA3</option><option value="exam">Exam</option></select></div>
       </div>
-      <div class="field"><label>Title</label><input id="caTitle" placeholder="e.g. First Term CA1 — Mathematics"/></div>
+      <div class="field"><label>Title</label><input id="caTitle" oninput="checkTitleTypeMismatch()" placeholder="e.g. First Term CA1 — Mathematics"/></div>
+      <div id="caTypeMismatchWarning" style="display:none;margin:-8px 0 14px;"></div>
       <div class="field"><label>Instructions (shown to students before they start)</label><textarea id="caInstructions" rows="2" style="width:100%;background:var(--dash-surface);color:var(--dash-text);border:1px solid var(--dash-border);border-radius:8px;padding:8px;"></textarea></div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;">
         <div class="field" style="flex:1;min-width:140px;"><label>Duration (minutes, blank = untimed)</label><input id="caDuration" type="number" min="1"/></div>
@@ -94,6 +95,22 @@ async function loadAssessmentsManageTab() {
 }
 function toggleScheduleFields() {
   document.getElementById("caScheduleFields").style.display = document.getElementById("caAvailability").value === "scheduled" ? "block" : "none";
+}
+// Catches exactly the mistake that once caused a real score to sync
+// to the wrong CA column: a title that says "CA2" while the
+// Assessment Type dropdown is still set to CA1 (or vice versa).
+function checkTitleTypeMismatch() {
+  const title = document.getElementById("caTitle").value.toUpperCase();
+  const type = document.getElementById("caType").value;
+  const typeLabels = { ca1: "CA1", ca2: "CA2", ca3: "CA3", exam: "EXAM" };
+  const mentioned = Object.entries(typeLabels).filter(([key, label]) => title.includes(label)).map(([key]) => key);
+  const warningEl = document.getElementById("caTypeMismatchWarning");
+  if (mentioned.length && !mentioned.includes(type)) {
+    warningEl.style.display = "block";
+    warningEl.innerHTML = `<span class="badge badge-danger">⚠ Your title mentions ${mentioned.map(k=>typeLabels[k]).join("/")} but Assessment Type is set to ${typeLabels[type]} — the score will sync to the wrong column. Double-check before creating.</span>`;
+  } else {
+    warningEl.style.display = "none";
+  }
 }
 async function createAssessment() {
   const [class_id, subject_id] = document.getElementById("caClassSubject").value.split("|");
@@ -340,14 +357,36 @@ async function loadResultsTable() {
   const body = document.getElementById("resBody");
   if (!assessmentId) { body.innerHTML = ""; return; }
   body.innerHTML = "Loading…";
-  const { data: attempts } = await sb.from("assessment_attempts").select("*, students(full_name, admission_no)").eq("assessment_id", assessmentId).order("score", { ascending: false });
+  const [{ data: attempts }, { data: assessment }] = await Promise.all([
+    sb.from("assessment_attempts").select("*, students(full_name, admission_no)").eq("assessment_id", assessmentId).order("score", { ascending: false }),
+    sb.from("assessments").select("subject_id, class_id, term_id, assessment_type, auto_sync_to_report_card").eq("id", assessmentId).single(),
+  ]);
   if (!attempts || !attempts.length) { body.innerHTML = `<div class="empty-state"><i class="fa-solid fa-inbox"></i><p>No submissions yet.</p></div>`; return; }
+
+  // Cross-check each attempt's score against the actual report-card
+  // column it should have synced to — catches exactly the mismatch
+  // that once left a real score stuck with no visible sign anything
+  // was wrong (see: Amina Umar / CA2 Social Studies, Aug 2026).
+  const scoreCol = { ca1: "ca1", ca2: "ca2", ca3: "ca3", exam: "exam_score" }[assessment.assessment_type];
+  const studentIds = attempts.map(a => a.student_id);
+  const { data: reportScores } = await sb.from("student_scores").select(`student_id, ${scoreCol}`)
+    .eq("subject_id", assessment.subject_id).eq("class_id", assessment.class_id).eq("term_id", assessment.term_id).in("student_id", studentIds);
+  const reportMap = {}; (reportScores||[]).forEach(r => { reportMap[r.student_id] = r[scoreCol]; });
+
   body.innerHTML = `<div style="overflow-x:auto;"><table class="data-table">
-    <thead><tr><th>Student</th><th>Adm No</th><th>Score</th><th>Total</th><th>Status</th><th>Submitted</th></tr></thead>
-    <tbody>${attempts.map(a => `<tr>
+    <thead><tr><th>Student</th><th>Adm No</th><th>Score</th><th>Total</th><th>Status</th><th>Report Card (${scoreCol.toUpperCase()})</th><th>Submitted</th></tr></thead>
+    <tbody>${attempts.map(a => {
+      const rcVal = reportMap[a.student_id];
+      const synced = a.status !== "submitted" ? null : (Number(rcVal) === Number(a.score));
+      const rcCell = a.status !== "submitted" ? "—"
+        : !assessment.auto_sync_to_report_card ? `<span class="badge badge-neutral">Auto-sync off</span>`
+        : synced ? `<span class="badge badge-success">✔ ${rcVal}</span>`
+        : `<span class="badge badge-danger" title="Report card shows ${rcVal ?? "—"}, not this attempt's score — likely a different score already occupied ${scoreCol.toUpperCase()} for this student/subject/term. Check Classes & Scores.">⚠ Not synced (shows ${rcVal ?? "—"})</span>`;
+      return `<tr>
       <td class="name-cell">${a.students.full_name}</td><td>${a.students.admission_no}</td>
       <td>${a.score ?? "—"}</td><td>${a.total_marks ?? "—"}</td>
       <td><span class="badge ${a.status==='submitted'?'badge-success':'badge-warning'}">${a.status === "submitted" ? "Submitted" : "In Progress"}</span></td>
+      <td>${rcCell}</td>
       <td>${a.submitted_at ? new Date(a.submitted_at).toLocaleString() : "—"}</td>
-    </tr>`).join("")}</tbody></table></div>`;
+    </tr>`;}).join("")}</tbody></table></div>`;
 }

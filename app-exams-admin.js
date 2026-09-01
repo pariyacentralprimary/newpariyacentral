@@ -209,6 +209,8 @@ async function loadQuestionBankFor(assessmentId) {
   const { data: a } = await sb.from("assessments").select("*").eq("id", assessmentId).single();
   const { data: questions } = await sb.from("assessment_questions").select("*").eq("assessment_id", assessmentId).order("order_index");
   const totalMarks = (questions||[]).reduce((s,q) => s + Number(q.marks), 0);
+  const isUniform = a.marking_mode === "uniform";
+  const defaultMark = isUniform ? (a.uniform_mark_per_question || 1) : 1;
 
   body.innerHTML = `
     <div class="settings-card">
@@ -226,23 +228,165 @@ async function loadQuestionBankFor(assessmentId) {
       <div style="font-size:12px;color:var(--dash-muted);">${(questions||[]).length} question${(questions||[]).length===1?"":"s"} · ${totalMarks} total marks</div>
     </div>
     <div class="settings-card">
-      <div class="settings-card-title">Add Question</div>
-      <div class="field"><label>Question</label><textarea id="qNewText" rows="2" style="width:100%;background:var(--dash-surface);color:var(--dash-text);border:1px solid var(--dash-border);border-radius:8px;padding:8px;"></textarea></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <div class="field"><label>Option A</label><input id="qNewA"/></div>
-        <div class="field"><label>Option B</label><input id="qNewB"/></div>
-        <div class="field"><label>Option C</label><input id="qNewC"/></div>
-        <div class="field"><label>Option D</label><input id="qNewD"/></div>
+      <div class="settings-card-title">Add Questions (Bulk)</div>
+      <p style="font-size:12px;color:var(--dash-muted);">Add as many questions as you like before saving — nothing is written to the database until you click "Save All Questions", and every question is validated first.</p>
+      <div id="bulkQuestionsContainer"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+        <button class="btn" onclick="addAnotherBulkQuestion('${assessmentId}', ${defaultMark})"><i class="fa-solid fa-plus"></i> Add Another Question</button>
+        <button class="btn" onclick="saveBulkDraft('${assessmentId}')"><i class="fa-solid fa-floppy-disk"></i> Save as Draft</button>
+        <button class="btn btn-green" style="margin-left:auto;" onclick="saveAllBulkQuestions('${assessmentId}', ${isUniform}, ${a.uniform_mark_per_question||1})"><i class="fa-solid fa-check-double"></i> Save All Questions</button>
       </div>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;">
-        <div class="field" style="flex:1;min-width:140px;"><label>Correct Answer</label>
-          <select id="qNewCorrect"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select></div>
-        <div class="field" style="flex:1;min-width:120px;"><label>Marks</label><input id="qNewMarks" type="number" min="0" value="${a.marking_mode==="uniform"?(a.uniform_mark_per_question||1):1}"/></div>
-      </div>
-      <button class="btn btn-green" onclick="addQuestion('${assessmentId}')"><i class="fa-solid fa-plus"></i> ADD QUESTION</button>
     </div>
     <div id="qListHost"></div>`;
+  loadBulkDraftIfAny(assessmentId, defaultMark);
   renderQuestionList(questions || [], assessmentId);
+}
+
+// ============================================================
+// BULK QUESTION BUILDER — uncontrolled inputs (values only read at
+// action time, e.g. Save/Duplicate) so typing in one card never
+// re-renders or loses focus/cursor position in any other card.
+// ============================================================
+let bulkQCounter = 0;
+function addBulkQuestionCard(assessmentId, prefill, defaultMark) {
+  bulkQCounter++;
+  const localId = "bq" + bulkQCounter + "_" + Date.now();
+  const p = prefill || {};
+  const mark = p.marks != null ? p.marks : (defaultMark || 1);
+  const html = `
+  <div class="settings-card bulk-q-card" data-local-id="${localId}" style="border-left:3px solid var(--dash-green);background:var(--dash-surface);">
+    <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleBulkCard('${localId}')">
+      <div style="font-weight:800;">Question <span class="bq-index"></span></div>
+      <div style="display:flex;gap:4px;" onclick="event.stopPropagation()">
+        <button class="btn" style="padding:4px 8px;font-size:11px;" onclick="moveBulkCard('${localId}',-1)" title="Move up"><i class="fa-solid fa-arrow-up"></i></button>
+        <button class="btn" style="padding:4px 8px;font-size:11px;" onclick="moveBulkCard('${localId}',1)" title="Move down"><i class="fa-solid fa-arrow-down"></i></button>
+        <button class="btn" style="padding:4px 8px;font-size:11px;" onclick="duplicateBulkCard('${localId}')" title="Duplicate"><i class="fa-solid fa-copy"></i></button>
+        <button class="btn" style="padding:4px 8px;font-size:11px;" onclick="toggleBulkCard('${localId}')" title="Collapse/Expand"><i class="fa-solid fa-chevron-down" id="bqChevron_${localId}"></i></button>
+        <button class="btn btn-danger" style="padding:4px 8px;font-size:11px;" onclick="deleteBulkCard('${localId}')" title="Remove"><i class="fa-solid fa-trash"></i></button>
+      </div>
+    </div>
+    <div class="bq-body" id="bqBody_${localId}" style="margin-top:10px;">
+      <div class="field"><label>Question</label><textarea class="bq-text" rows="2" style="width:100%;background:var(--dash-card);color:var(--dash-text);border:1px solid var(--dash-border);border-radius:8px;padding:8px;">${p.text||""}</textarea></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="field"><label>Option A</label><input class="bq-a" value="${p.a||""}"/></div>
+        <div class="field"><label>Option B</label><input class="bq-b" value="${p.b||""}"/></div>
+        <div class="field"><label>Option C</label><input class="bq-c" value="${p.c||""}"/></div>
+        <div class="field"><label>Option D</label><input class="bq-d" value="${p.d||""}"/></div>
+      </div>
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+        <div style="display:flex;gap:10px;">
+          <span style="font-size:11px;color:var(--dash-muted);font-weight:800;">Correct:</span>
+          ${["A","B","C","D"].map(o=>`<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;"><input type="radio" class="bq-correct" name="bqcorrect_${localId}" value="${o}" ${p.correct===o?"checked":""}/> ${o}</label>`).join("")}
+        </div>
+        <div class="field" style="margin-bottom:0;"><label style="font-size:11px;">Mark</label><input class="bq-marks" type="number" min="0" value="${mark}" style="width:80px;"/></div>
+      </div>
+      <div class="bq-error" style="display:none;color:var(--dash-danger);font-size:12px;font-weight:800;margin-top:6px;"></div>
+    </div>
+  </div>`;
+  document.getElementById("bulkQuestionsContainer").insertAdjacentHTML("beforeend", html);
+  renumberBulkCards();
+}
+function renumberBulkCards() {
+  document.querySelectorAll("#bulkQuestionsContainer .bulk-q-card").forEach((card, i) => {
+    card.querySelector(".bq-index").textContent = i + 1;
+  });
+}
+function toggleBulkCard(localId) {
+  const body = document.getElementById(`bqBody_${localId}`);
+  const chevron = document.getElementById(`bqChevron_${localId}`);
+  const collapsed = body.style.display === "none";
+  body.style.display = collapsed ? "block" : "none";
+  chevron.className = collapsed ? "fa-solid fa-chevron-down" : "fa-solid fa-chevron-up";
+}
+function moveBulkCard(localId, direction) {
+  const container = document.getElementById("bulkQuestionsContainer");
+  const card = container.querySelector(`[data-local-id="${localId}"]`);
+  if (direction === -1 && card.previousElementSibling) container.insertBefore(card, card.previousElementSibling);
+  else if (direction === 1 && card.nextElementSibling) container.insertBefore(card.nextElementSibling, card);
+  renumberBulkCards();
+}
+function readBulkCard(cardEl) {
+  const correctInput = cardEl.querySelector(".bq-correct:checked");
+  return {
+    text: cardEl.querySelector(".bq-text").value.trim(),
+    a: cardEl.querySelector(".bq-a").value.trim(),
+    b: cardEl.querySelector(".bq-b").value.trim(),
+    c: cardEl.querySelector(".bq-c").value.trim(),
+    d: cardEl.querySelector(".bq-d").value.trim(),
+    correct: correctInput ? correctInput.value : null,
+    marks: Number(cardEl.querySelector(".bq-marks").value) || 0,
+  };
+}
+function duplicateBulkCard(localId) {
+  const card = document.querySelector(`[data-local-id="${localId}"]`);
+  addBulkQuestionCard(null, readBulkCard(card));
+}
+function deleteBulkCard(localId) {
+  if (!confirm("Remove this question from the batch? (It hasn't been saved yet.)")) return;
+  document.querySelector(`[data-local-id="${localId}"]`).remove();
+  renumberBulkCards();
+}
+function addAnotherBulkQuestion(assessmentId, defaultMark) {
+  addBulkQuestionCard(assessmentId, null, defaultMark);
+  const cards = document.querySelectorAll("#bulkQuestionsContainer .bulk-q-card");
+  cards[cards.length - 1].scrollIntoView({ behavior: "smooth", block: "center" });
+}
+function loadBulkDraftIfAny(assessmentId, defaultMark) {
+  document.getElementById("bulkQuestionsContainer").innerHTML = "";
+  const raw = localStorage.getItem(`pariya-bulk-draft-${assessmentId}`);
+  let data = null;
+  if (raw) { try { data = JSON.parse(raw); } catch (e) { data = null; } }
+  if (data && data.length) data.forEach(d => addBulkQuestionCard(assessmentId, d, defaultMark));
+  else addBulkQuestionCard(assessmentId, null, defaultMark);
+}
+function saveBulkDraft(assessmentId) {
+  const cards = [...document.querySelectorAll("#bulkQuestionsContainer .bulk-q-card")];
+  localStorage.setItem(`pariya-bulk-draft-${assessmentId}`, JSON.stringify(cards.map(readBulkCard)));
+  alert("Draft saved on this device — reopen this assessment's Question Bank to continue, even after closing the browser.");
+}
+async function saveAllBulkQuestions(assessmentId, isUniform, uniformMark) {
+  const cards = [...document.querySelectorAll("#bulkQuestionsContainer .bulk-q-card")];
+  if (!cards.length) { alert("Add at least one question first."); return; }
+
+  // Validate every question before saving any of them (spec: don't
+  // silently save incomplete questions, show every error at once).
+  let badIndexes = [];
+  const parsed = cards.map((card, i) => {
+    const data = readBulkCard(card);
+    const missing = [];
+    if (!data.text) missing.push("question text");
+    if (!data.a) missing.push("Option A");
+    if (!data.b) missing.push("Option B");
+    if (!data.c) missing.push("Option C");
+    if (!data.d) missing.push("Option D");
+    if (!data.correct) missing.push("a correct answer");
+    if (!(data.marks > 0)) missing.push("a valid mark");
+    const errEl = card.querySelector(".bq-error");
+    if (missing.length) {
+      errEl.style.display = "block";
+      errEl.textContent = `Question ${i + 1} is incomplete — missing: ${missing.join(", ")}.`;
+      badIndexes.push(i + 1);
+    } else {
+      errEl.style.display = "none";
+    }
+    return isUniform ? { ...data, marks: uniformMark } : data;
+  });
+  if (badIndexes.length) {
+    alert(`Question${badIndexes.length===1?"":"s"} ${badIndexes.join(", ")} ${badIndexes.length===1?"is":"are"} incomplete. Fix the highlighted question${badIndexes.length===1?"":"s"} before saving — nothing has been saved yet.`);
+    document.querySelectorAll("#bulkQuestionsContainer .bulk-q-card")[badIndexes[0]-1].scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+
+  const { count: existingCount } = await sb.from("assessment_questions").select("id", { count: "exact", head: true }).eq("assessment_id", assessmentId);
+  const rows = parsed.map((q, i) => ({
+    assessment_id: assessmentId, question_text: q.text, option_a: q.a, option_b: q.b, option_c: q.c, option_d: q.d,
+    correct_option: q.correct, marks: q.marks, order_index: (existingCount || 0) + i,
+  }));
+  const { error } = await sb.from("assessment_questions").insert(rows);
+  if (error) { alert(error.message); return; }
+  localStorage.removeItem(`pariya-bulk-draft-${assessmentId}`);
+  alert(`${rows.length} question${rows.length===1?"":"s"} saved.`);
+  loadQuestionBankFor(assessmentId);
 }
 function renderQuestionList(questions, assessmentId) {
   document.getElementById("qListHost").innerHTML = questions.length ? questions.map((q, i) => `
@@ -270,22 +414,6 @@ async function applyUniformMarks(assessmentId) {
   const mark = Number(document.getElementById("qbUniformMark").value) || 1;
   await sb.from("assessments").update({ uniform_mark_per_question: mark }).eq("id", assessmentId);
   await sb.from("assessment_questions").update({ marks: mark }).eq("assessment_id", assessmentId);
-  loadQuestionBankFor(assessmentId);
-}
-async function addQuestion(assessmentId) {
-  const question_text = document.getElementById("qNewText").value.trim();
-  const option_a = document.getElementById("qNewA").value.trim();
-  const option_b = document.getElementById("qNewB").value.trim();
-  const option_c = document.getElementById("qNewC").value.trim();
-  const option_d = document.getElementById("qNewD").value.trim();
-  const correct_option = document.getElementById("qNewCorrect").value;
-  const marks = Number(document.getElementById("qNewMarks").value) || 1;
-  if (!question_text || !option_a || !option_b || !option_c || !option_d) { alert("Question text and all four options are required."); return; }
-  const { count } = await sb.from("assessment_questions").select("id", { count: "exact", head: true }).eq("assessment_id", assessmentId);
-  const { error } = await sb.from("assessment_questions").insert({
-    assessment_id: assessmentId, question_text, option_a, option_b, option_c, option_d, correct_option, marks, order_index: count || 0,
-  });
-  if (error) { alert(error.message); return; }
   loadQuestionBankFor(assessmentId);
 }
 function openEditQuestion(q, assessmentId) {

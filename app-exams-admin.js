@@ -249,6 +249,8 @@ async function loadQuestionBankFor(assessmentId) {
         <button class="btn btn-green" onclick="saveDistributionSettings('${assessmentId}', ${(questions||[]).length})">Save</button>
       </div>
       <p style="font-size:11px;color:var(--dash-muted);margin-top:8px;">Smart Anti-Leak tries to give students in the same class substantially different question combinations with low overlap — not just independent random picks. This reduces leakage risk; it doesn't guarantee it's impossible to share answers.</p>
+      <button class="btn" style="margin-top:10px;" onclick="loadDistributionPreview('${assessmentId}')"><i class="fa-solid fa-eye"></i> Preview Distribution</button>
+      <div id="distPreviewHost" style="margin-top:12px;"></div>
     </div>
     <div class="settings-card">
       <div class="settings-card-title">Add Questions (Bulk)</div>
@@ -428,6 +430,32 @@ function renderQuestionList(questions, assessmentId) {
       </div>
       <div style="font-size:12px;margin-top:4px;"><span class="badge badge-success">Correct: ${q.correct_option}</span> <span class="badge badge-info">${q.marks} mark${q.marks==1?"":"s"}</span></div>
     </div>`).join("") : `<div class="empty-state"><i class="fa-solid fa-list-ol"></i><p>No questions yet — add the first one above.</p></div>`;
+}
+async function loadDistributionPreview(assessmentId) {
+  const host = document.getElementById("distPreviewHost");
+  host.innerHTML = "Loading…";
+  const { data: rows, error } = await sb.rpc("preview_assessment_distribution", { p_assessment_id: assessmentId, p_sample_size: 5 });
+  if (error) { host.innerHTML = `<p style="color:var(--dash-danger);">${error.message}</p>`; return; }
+  if (!rows || !rows.length) { host.innerHTML = `<div class="empty-state"><i class="fa-solid fa-circle-info"></i><p>No data yet.</p></div>`; return; }
+  const meta = rows[0];
+  if (meta.bank_count === 0) { host.innerHTML = `<div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i><p>Add questions to the bank first — there's nothing to distribute yet.</p></div>`; return; }
+
+  host.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px;">
+      ${kpiCard("fa-database", meta.bank_count, "Questions in Bank")}
+      ${kpiCard("fa-users", meta.eligible_students, "Students Eligible")}
+      ${kpiCard("fa-list-check", meta.effective_questions_per_student, meta.questions_per_student ? "Per Student" : "Per Student (all)")}
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">
+      <span class="badge badge-info">${meta.distribution_mode === "standard" ? "Standard Random" : "Smart Anti-Leak"}</span>
+      <span class="badge ${meta.shuffle_questions?"badge-success":"badge-neutral"}">Shuffle Questions: ${meta.shuffle_questions?"ON":"OFF"}</span>
+      <span class="badge ${meta.shuffle_options?"badge-success":"badge-neutral"}">Shuffle Answer Options: ${meta.shuffle_options?"ON":"OFF"}</span>
+    </div>
+    <p style="font-size:12px;color:var(--dash-muted);margin-bottom:8px;">Illustrative sample combinations (question numbers refer to the order shown in the list below) — these are throwaway examples to show the kind of variation to expect, not real students' actual assignments. Each real student's exact set is only generated the moment they click Start.</p>
+    <div style="overflow-x:auto;"><table class="data-table">
+      <thead><tr><th>Sample Student</th><th>Would Receive Question #s</th></tr></thead>
+      <tbody>${rows.map(r => `<tr><td>Sample ${r.sample_index}</td><td>${(r.sample_question_numbers||[]).join(", ")}</td></tr>`).join("")}</tbody>
+    </table></div>`;
 }
 async function saveDistributionSettings(assessmentId, bankCount) {
   const raw = document.getElementById("qbQuestionsPerStudent").value;

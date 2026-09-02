@@ -75,6 +75,8 @@ async function loadAssessmentsManageTab() {
         <div class="field" style="flex:1;min-width:140px;"><label>Duration (minutes, blank = untimed)</label><input id="caDuration" type="number" min="1"/></div>
         <div class="field" style="flex:1;min-width:140px;"><label>Shuffle Questions</label>
           <select id="caShuffle"><option value="true">Yes</option><option value="false">No</option></select></div>
+        <div class="field" style="flex:1;min-width:140px;"><label>Shuffle Answer Options</label>
+          <select id="caShuffleOptions"><option value="true">Yes</option><option value="false">No</option></select></div>
       </div>
       <div class="field"><label>Availability</label>
         <select id="caAvailability" onchange="toggleScheduleFields()"><option value="ready">Ready Now</option><option value="scheduled">Schedule For Later</option></select></div>
@@ -120,6 +122,7 @@ async function createAssessment() {
   const instructions = document.getElementById("caInstructions").value.trim() || null;
   const duration_minutes = document.getElementById("caDuration").value ? Number(document.getElementById("caDuration").value) : null;
   const shuffle_questions = document.getElementById("caShuffle").value === "true";
+  const shuffle_options = document.getElementById("caShuffleOptions").value === "true";
   const availability = document.getElementById("caAvailability").value;
   const status = availability === "scheduled" ? "scheduled" : "ready";
   const start_at = document.getElementById("caStartAt").value ? new Date(document.getElementById("caStartAt").value).toISOString() : null;
@@ -129,7 +132,7 @@ async function createAssessment() {
 
   const { error } = await sb.from("assessments").insert({
     class_id, subject_id, term_id: state.currentTermId, assessment_type, title, instructions,
-    duration_minutes, shuffle_questions, status, start_at, end_at, auto_sync_to_report_card,
+    duration_minutes, shuffle_questions, shuffle_options, status, start_at, end_at, auto_sync_to_report_card,
   });
   if (error) { alert(error.message); return; }
   alert("Created. Add questions from the Question Bank tab before publishing to students.");

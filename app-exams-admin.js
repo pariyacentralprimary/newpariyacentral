@@ -228,6 +228,26 @@ async function loadQuestionBankFor(assessmentId) {
       <div style="font-size:12px;color:var(--dash-muted);">${(questions||[]).length} question${(questions||[]).length===1?"":"s"} · ${totalMarks} total marks</div>
     </div>
     <div class="settings-card">
+      <div class="settings-card-title">Question Distribution</div>
+      <p style="font-size:12px;color:var(--dash-muted);">Give each student only a subset of the question bank — e.g. 50 questions in the bank, 10 per student — to make it harder for students to compare identical papers.</p>
+      <div class="badge badge-info" style="margin-bottom:12px;">Questions Available: ${(questions||[]).length}</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;">
+        <div class="field" style="flex:1;min-width:200px;">
+          <label>Questions Each Student Will Take</label>
+          <input id="qbQuestionsPerStudent" type="number" min="1" max="${(questions||[]).length}" value="${a.questions_per_student || ""}" placeholder="Leave blank = give everyone every question"/>
+        </div>
+        <div class="field" style="flex:1;min-width:220px;">
+          <label>Distribution Mode</label>
+          <select id="qbDistributionMode">
+            <option value="smart_anti_leak" ${a.distribution_mode!=="standard"?"selected":""}>Smart Anti-Leak Distribution</option>
+            <option value="standard" ${a.distribution_mode==="standard"?"selected":""}>Standard Random</option>
+          </select>
+        </div>
+        <button class="btn btn-green" onclick="saveDistributionSettings('${assessmentId}', ${(questions||[]).length})">Save</button>
+      </div>
+      <p style="font-size:11px;color:var(--dash-muted);margin-top:8px;">Smart Anti-Leak tries to give students in the same class substantially different question combinations with low overlap — not just independent random picks. This reduces leakage risk; it doesn't guarantee it's impossible to share answers.</p>
+    </div>
+    <div class="settings-card">
       <div class="settings-card-title">Add Questions (Bulk)</div>
       <p style="font-size:12px;color:var(--dash-muted);">Add as many questions as you like before saving — nothing is written to the database until you click "Save All Questions", and every question is validated first.</p>
       <div id="bulkQuestionsContainer"></div>
@@ -405,6 +425,18 @@ function renderQuestionList(questions, assessmentId) {
       </div>
       <div style="font-size:12px;margin-top:4px;"><span class="badge badge-success">Correct: ${q.correct_option}</span> <span class="badge badge-info">${q.marks} mark${q.marks==1?"":"s"}</span></div>
     </div>`).join("") : `<div class="empty-state"><i class="fa-solid fa-list-ol"></i><p>No questions yet — add the first one above.</p></div>`;
+}
+async function saveDistributionSettings(assessmentId, bankCount) {
+  const raw = document.getElementById("qbQuestionsPerStudent").value;
+  const questions_per_student = raw === "" ? null : Number(raw);
+  if (questions_per_student != null) {
+    if (questions_per_student < 1) { alert("Questions per student must be at least 1."); return; }
+    if (questions_per_student > bankCount) { alert(`Questions per student (${questions_per_student}) can't exceed the ${bankCount} question${bankCount===1?"":"s"} currently in the bank.`); return; }
+  }
+  const distribution_mode = document.getElementById("qbDistributionMode").value;
+  const { error } = await sb.from("assessments").update({ questions_per_student, distribution_mode }).eq("id", assessmentId);
+  if (error) { alert(error.message); return; }
+  alert(questions_per_student ? `Saved — each student will now receive ${questions_per_student} of the ${bankCount} questions.` : "Saved — every student will receive the full question bank.");
 }
 async function setMarkingMode(assessmentId, mode) {
   await sb.from("assessments").update({ marking_mode: mode }).eq("id", assessmentId);

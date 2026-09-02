@@ -58,7 +58,7 @@ function examSubjectCardHtml(r) {
   } else {
     statusHtml = `<span class="badge badge-neutral">Test Not Available</span>`;
   }
-  return `<div class="class-card" style="cursor:${clickable?"pointer":"default"};${clickable?"":"opacity:.75;"}" ${clickable?`onclick="openExamConfirm('${r.assessment_id}')"`:""}>
+  return `<div class="class-card" style="cursor:${clickable?"pointer":"default"};${clickable?"":"opacity:.75;"}" ${clickable?`onclick="openExamConfirm('${r.assessment_id}', ${r.question_count}, ${r.total_marks})"`:""}>
     <div class="cc-icon"><i class="fa-solid fa-book"></i></div>
     <div class="cc-name">${r.subject_name}</div>
     <div style="margin:6px 0;">${statusHtml}</div>
@@ -66,18 +66,18 @@ function examSubjectCardHtml(r) {
   </div>`;
 }
 
-async function openExamConfirm(assessmentId) {
-  const { data: a } = await sb.from("assessments").select("title, subject_id, assessment_type, duration_minutes, start_at, end_at, subjects(name)").eq("id", assessmentId).maybeSingle();
-  const { count } = await sb.from("assessment_questions").select("id", { count: "exact", head: true }).eq("assessment_id", assessmentId);
-  const { data: marksRows } = await sb.from("assessment_questions").select("marks").eq("assessment_id", assessmentId);
-  const totalMarks = (marksRows || []).reduce((s, r) => s + Number(r.marks), 0);
+async function openExamConfirm(assessmentId, questionCount, totalMarks) {
+  const { data: a } = await sb.from("assessments").select("title, subject_id, assessment_type, duration_minutes, start_at, end_at, questions_per_student, marking_mode, subjects(name)").eq("id", assessmentId).maybeSingle();
+  const { count: bankCount } = await sb.from("assessment_questions").select("id", { count: "exact", head: true }).eq("assessment_id", assessmentId);
+  const isDistributed = a.questions_per_student > 0 && a.questions_per_student < bankCount;
+  const marksIsEstimate = isDistributed && a.marking_mode !== "uniform";
 
   openModal(`
     <h3 style="margin-top:0;">Are you ready to start this ${a.assessment_type === "exam" ? "Exam" : "Test"}?</h3>
     <div class="settings-row"><span>Subject</span><span>${a.subjects.name}</span></div>
     <div class="settings-row"><span>Title</span><span>${a.title}</span></div>
-    <div class="settings-row"><span>Questions</span><span>${count}</span></div>
-    <div class="settings-row"><span>Total Marks</span><span>${totalMarks}</span></div>
+    <div class="settings-row"><span>Questions</span><span>${questionCount}${isDistributed ? ` (selected from a pool of ${bankCount})` : ""}</span></div>
+    <div class="settings-row"><span>Total Marks</span><span>${totalMarks}${marksIsEstimate ? " (approx.)" : ""}</span></div>
     <div class="settings-row"><span>Duration</span><span>${a.duration_minutes ? a.duration_minutes + " minutes" : "Untimed"}</span></div>
     ${a.end_at ? `<div class="settings-row"><span>Closes</span><span>${new Date(a.end_at).toLocaleString()}</span></div>` : ""}
     <p style="font-size:12px;color:var(--dash-muted);margin-top:12px;">Once started, you get one attempt. Answers are saved as you move between questions — you can always go back and change them before submitting.</p>

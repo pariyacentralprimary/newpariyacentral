@@ -111,6 +111,7 @@ function toggleSidebarCollapse() {
 // (defined in router.js) is what everything else in the app should
 // call — it routes through navigate() and ends up calling this.
 function renderTab(id) {
+  unsubscribeAllLive();
   document.querySelectorAll(".sidebar-item").forEach(b => b.classList.toggle("active", b.dataset.tab === id));
   document.getElementById("topbarTitle").textContent = TAB_TITLES[id] || id;
   toggleSidebar(false);
@@ -145,14 +146,7 @@ async function renderDashboard() {
       <div class="settings-card-title">Quick Links</div>
       <div class="quicklinks-grid" id="dashQuickLinks"></div>
     </div>`;
-  const { count: studentCount } = await sb.from("students").select("id", { count: "exact", head: true }).eq("is_active", true);
-  const { count: staffCount } = await sb.from("staff").select("id", { count: "exact", head: true }).eq("is_active", true);
-  document.getElementById("dashStats").innerHTML = `
-    ${kpiCard("fa-user-graduate", studentCount ?? "—", "Active Students")}
-    ${kpiCard("fa-user-tie", staffCount ?? "—", "Active Staff")}
-    ${kpiCard("fa-chalkboard", state.classes.length, "Classes")}
-    ${kpiCard("fa-book", state.subjects.length, "Subjects")}
-  `;
+  await loadDashboardStats();
   // Quick Links use the exact same nav entries/routes this role
   // already has in the sidebar — no new destinations, just faster
   // access to a handful of the most common ones from the home page.
@@ -164,6 +158,18 @@ async function renderDashboard() {
   document.getElementById("dashQuickLinks").innerHTML = nav.slice(0, 8).map(([id,icon,label]) =>
     `<a href="#${TAB_TO_ROUTE[id] || ""}" class="quicklink-card" onclick="switchTab('${id}');return false;"><i class="fa-solid ${icon}"></i> ${label}</a>`
   ).join("") || `<p style="color:var(--dash-muted);font-size:12px;">No other sections available for your role.</p>`;
+}
+async function loadDashboardStats() {
+  const el = document.getElementById("dashStats");
+  if (!el) return;
+  const { count: studentCount } = await sb.from("students").select("id", { count: "exact", head: true }).eq("is_active", true);
+  const { count: staffCount } = await sb.from("staff").select("id", { count: "exact", head: true }).eq("is_active", true);
+  el.innerHTML = `
+    ${kpiCard("fa-user-graduate", studentCount ?? "—", "Active Students")}
+    ${kpiCard("fa-user-tie", staffCount ?? "—", "Active Staff")}
+    ${kpiCard("fa-chalkboard", state.classes.length, "Classes")}
+    ${kpiCard("fa-book", state.subjects.length, "Subjects")}
+  `;
 }
 function statCard(icon, value, label) {
   return `<div class="class-card"><div class="cc-icon"><i class="fa-solid ${icon}"></i></div><div class="cc-name">${value}</div><div class="cc-sub">${label}</div></div>`;
@@ -206,6 +212,7 @@ async function renderClasses() {
 }
 
 async function openClass(classId) {
+  unsubscribeAllLive();
   state.currentClass = state.classes.find(c => c.id === classId);
   const el = document.getElementById("tabRoot");
   el.innerHTML = `<div class="tab-panel active">
@@ -219,12 +226,30 @@ async function openClass(classId) {
       </div>
     </div>
     <div class="term-pills" id="termPills"></div>
+    <div id="liveUpdateBanner" style="display:none;"></div>
     <div id="classBody"></div>
   </div>`;
   document.getElementById("termPills").innerHTML = state.terms.map(t =>
     `<div class="term-pill ${t.id === state.currentTermId ? "active" : ""}" onclick="setClassTerm('${t.id}')">${t.name}</div>`
   ).join("");
   await loadClassScoreGrid();
+  // Scores are the one place "live" needs a safety valve: this grid
+  // IS the editable form (per-cell dirty tracking), so a naive
+  // reload could wipe someone's unsaved keystrokes. If there's
+  // nothing unsaved, refresh silently; otherwise show a banner
+  // instead of overwriting their in-progress work.
+  const onScoreChange = () => {
+    const dirty = document.querySelectorAll('#classBody input[data-dirty="1"]').length;
+    if (dirty === 0) { loadClassScoreGrid(); return; }
+    const banner = document.getElementById("liveUpdateBanner");
+    if (banner) {
+      banner.style.display = "block";
+      banner.innerHTML = `<div class="badge badge-warning" style="cursor:pointer;margin-bottom:10px;" onclick="loadClassScoreGrid()">🔄 New updates available — you have unsaved changes, click to refresh anyway (unsaved edits will be lost)</div>`;
+    }
+  };
+  subscribeLive("student_scores_changes", onScoreChange);
+  subscribeLive("term_period_windows_changes", onScoreChange);
+  subscribeLive("subject_score_locks_changes", onScoreChange);
 }
 function setClassTerm(termId) {
   state.currentTermId = termId;
@@ -818,6 +843,17 @@ async function renderPrintReports() {
     </div>
     <div id="prStatus" style="margin:10px 0;color:var(--dash-muted);font-size:13px;"></div>
     <div id="prBulkHost"></div>`;
+  // Only re-triggers once a batch has actually been loaded (don't
+  // auto-load before the admin has picked a class/term and clicked
+  // "Load Report Cards") — keeps whatever's currently on screen in
+  // sync with score changes happening elsewhere (e.g. an online test
+  // submission syncing a score after this batch was pulled).
+  const refreshIfLoaded = () => {
+    const host = document.getElementById("prBulkHost");
+    if (host && host.innerHTML.trim()) loadBulkReportCards();
+  };
+  subscribeLive("student_scores_changes", refreshIfLoaded);
+  subscribeLive("student_term_summary_changes", refreshIfLoaded);
 }
 
 async function loadBulkReportCards() {

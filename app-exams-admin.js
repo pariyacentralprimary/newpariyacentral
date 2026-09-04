@@ -24,6 +24,21 @@ async function renderAssessmentsAdmin() {
     <div id="eapanel-questions" class="ea-panel" style="display:none;"></div>
     <div id="eapanel-results" class="ea-panel" style="display:none;"></div>`;
   switchExAdminTab("manage");
+
+  // Subscribed ONCE per visit to this whole panel (not per sub-tab
+  // click, which would stack duplicate subscriptions every time
+  // someone flips between Manage/Question Bank/Results) — the guard
+  // inside only actually reloads when Results is the visible sub-tab
+  // with an assessment already selected, so a submission landing
+  // while you're on a different sub-tab doesn't do anything until
+  // you're actually looking at Results.
+  subscribeLive("assessment_attempts_changes", () => {
+    const resultsPanel = document.getElementById("eapanel-results");
+    const assessmentSelect = document.getElementById("resAssessmentSelect");
+    if (resultsPanel && resultsPanel.style.display !== "none" && assessmentSelect && assessmentSelect.value) {
+      loadResultsTable();
+    }
+  });
 }
 function switchExAdminTab(tab) {
   ["manage","questions","results"].forEach(t => {

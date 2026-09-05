@@ -224,7 +224,7 @@ async function loadQuestionBankFor(assessmentId) {
   const body = document.getElementById("qbBody");
   if (!assessmentId) { body.innerHTML = ""; return; }
   body.innerHTML = "Loading…";
-  const { data: a } = await sb.from("assessments").select("*").eq("id", assessmentId).single();
+  const { data: a } = await sb.from("assessments").select("*, subjects(name), classes(name)").eq("id", assessmentId).single();
   const { data: questions } = await sb.from("assessment_questions").select("*").eq("assessment_id", assessmentId).order("order_index");
   const totalMarks = (questions||[]).reduce((s,q) => s + Number(q.marks), 0);
   const isUniform = a.marking_mode === "uniform";
@@ -268,6 +268,30 @@ async function loadQuestionBankFor(assessmentId) {
       <div id="distPreviewHost" style="margin-top:12px;"></div>
     </div>
     <div class="settings-card">
+      <div class="settings-card-title">📋 Paste / Import Questions</div>
+      <p style="font-size:12px;color:var(--dash-muted);">Get an AI (ChatGPT, Claude, etc.) to write questions in the right format, then paste its answer below — it fills the builder automatically for you to review before saving.</p>
+      <button class="btn" onclick="copyAiQuestionPrompt('${(a.subjects?.name||"").replace(/'/g,"&apos;")}', '${(a.classes?.name||"").replace(/'/g,"&apos;")}')"><i class="fa-solid fa-robot"></i> Copy AI Prompt</button>
+      <div class="field" style="margin-top:12px;"><label>Paste Questions Here</label>
+        <textarea id="pasteQuestionsBox" rows="8" style="width:100%;background:var(--dash-surface);color:var(--dash-text);border:1px solid var(--dash-border);border-radius:8px;padding:8px;font-family:monospace;font-size:12px;" placeholder="Q: What is 2 + 2?
+A: 3
+B: 4
+C: 5
+D: 6
+ANSWER: B
+MARKS: 1
+
+Q: What is the capital of Nigeria?
+A: Lagos
+B: Kano
+C: Abuja
+D: Ibadan
+ANSWER: C
+MARKS: 1"></textarea>
+      </div>
+      <button class="btn btn-green" onclick="parsePastedQuestions('${assessmentId}', ${defaultMark})"><i class="fa-solid fa-arrow-down"></i> Add These to the Builder Below</button>
+      <div id="pasteParseResult" style="margin-top:8px;font-size:12px;"></div>
+    </div>
+    <div class="settings-card">
       <div class="settings-card-title">Add Questions (Bulk)</div>
       <p style="font-size:12px;color:var(--dash-muted);">Add as many questions as you like before saving — nothing is written to the database until you click "Save All Questions", and every question is validated first.</p>
       <div id="bulkQuestionsContainer"></div>
@@ -280,6 +304,94 @@ async function loadQuestionBankFor(assessmentId) {
     <div id="qListHost"></div>`;
   loadBulkDraftIfAny(assessmentId, defaultMark);
   renderQuestionList(questions || [], assessmentId);
+}
+
+// ============================================================
+// PASTE / IMPORT — a ready-made AI prompt (personalized with this
+// assessment's real subject/class) plus a parser for the plain-text
+// format it asks the AI to produce. Feeds straight into the same
+// bulk builder above, so every pasted question still gets reviewed
+// and validated before anything is saved.
+// ============================================================
+function copyAiQuestionPrompt(subjectName, className) {
+  const prompt = `Write 10 multiple-choice questions for ${subjectName || "[SUBJECT]"}, suitable for ${className || "[CLASS]"} students, on the topic of [TOPIC — fill this in].
+
+Use EXACTLY this format for every question, with a blank line between questions, and nothing else before, after, or in between:
+
+Q: <question text>
+A: <option A>
+B: <option B>
+C: <option C>
+D: <option D>
+ANSWER: <the correct letter, A, B, C, or D>
+MARKS: <a number, e.g. 1>
+
+Do not number the questions yourself. Do not add any headings, explanations, or extra text outside this format.`;
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(prompt).then(
+      () => alert("Prompt copied! Paste it into ChatGPT, Claude, or any AI — fill in the topic and how many questions you want, then paste its answer into the box below."),
+      () => promptFallbackCopy(prompt)
+    );
+  } else {
+    promptFallbackCopy(prompt);
+  }
+}
+function promptFallbackCopy(text) {
+  openModal(`<h3>Copy this prompt</h3><textarea readonly style="width:100%;height:220px;background:var(--dash-surface);color:var(--dash-text);border:1px solid var(--dash-border);border-radius:8px;padding:8px;font-family:monospace;font-size:12px;">${text}</textarea>`);
+}
+
+function parseQuestionPasteText(raw) {
+  const blocks = raw.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+  const results = [];
+  const errors = [];
+  blocks.forEach((block, i) => {
+    const lines = block.split("\n").map(l => l.trim()).filter(Boolean);
+    const get = (prefix) => {
+      const line = lines.find(l => l.toUpperCase().startsWith(prefix));
+      return line ? line.slice(line.indexOf(":") + 1).trim() : "";
+    };
+    const text = get("Q:");
+    const a = get("A:");
+    const b = get("B:");
+    const c = get("C:");
+    const d = get("D:");
+    let correct = get("ANSWER:").toUpperCase().replace(/[^ABCD]/g, "");
+    correct = ["A","B","C","D"].includes(correct) ? correct : "";
+    const marksRaw = get("MARKS:");
+    const marks = marksRaw && Number(marksRaw) > 0 ? Number(marksRaw) : null;
+
+    const missing = [];
+    if (!text) missing.push("question (Q:)");
+    if (!a) missing.push("Option A");
+    if (!b) missing.push("Option B");
+    if (!c) missing.push("Option C");
+    if (!d) missing.push("Option D");
+    if (!correct) missing.push("a valid ANSWER (A/B/C/D)");
+    if (missing.length) {
+      errors.push(`Block ${i+1} is missing ${missing.join(", ")} — skipped.`);
+      return;
+    }
+    results.push({ text, a, b, c, d, correct, marks });
+  });
+  return { results, errors };
+}
+function parsePastedQuestions(assessmentId, defaultMark) {
+  const raw = document.getElementById("pasteQuestionsBox").value;
+  if (!raw.trim()) { alert("Paste some questions first."); return; }
+  const { results, errors } = parseQuestionPasteText(raw);
+  const resultEl = document.getElementById("pasteParseResult");
+  resultEl.innerHTML = "";
+  if (results.length) {
+    results.forEach(q => addBulkQuestionCard(assessmentId, {
+      text: q.text, a: q.a, b: q.b, c: q.c, d: q.d, correct: q.correct, marks: q.marks != null ? q.marks : defaultMark,
+    }, defaultMark));
+    const cards = document.querySelectorAll("#bulkQuestionsContainer .bulk-q-card");
+    cards[cards.length - results.length].scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  resultEl.innerHTML = `<span class="badge ${results.length?"badge-success":"badge-neutral"}">${results.length} question${results.length===1?"":"s"} added to the builder below</span>` +
+    (errors.length ? `<div style="color:var(--dash-danger);margin-top:6px;">${errors.join("<br>")}</div>` : "");
+  if (results.length) document.getElementById("pasteQuestionsBox").value = "";
 }
 
 // ============================================================

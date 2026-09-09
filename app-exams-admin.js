@@ -225,12 +225,33 @@ async function loadQuestionBankFor(assessmentId) {
   if (!assessmentId) { body.innerHTML = ""; return; }
   body.innerHTML = "Loading…";
   const { data: a } = await sb.from("assessments").select("*, subjects(name), classes(name)").eq("id", assessmentId).single();
-  const { data: questions } = await sb.from("assessment_questions").select("*").eq("assessment_id", assessmentId).order("order_index");
+  let { data: questions } = await sb.from("assessment_questions").select("*").eq("assessment_id", assessmentId).order("order_index");
+  let autoImportNotice = "";
+
+  // Exams start with zero questions of their own — the first time you
+  // open an exam's bank, automatically pull in every question already
+  // written for CA1/CA2/CA3 of the SAME class+subject+term, as a
+  // starting point. Copies (not shared rows), so editing marks/text
+  // here afterward never disturbs the original CA test, and vice
+  // versa. Only runs once — if the bank already has questions
+  // (whether from this or an earlier import), it won't run again
+  // automatically; use "Import More from CA Tests" for anything
+  // added to the CAs later.
+  if (a.assessment_type === "exam" && (questions||[]).length === 0) {
+    const imported = await importCaQuestionsIntoExam(assessmentId, a.class_id, a.subject_id, a.term_id, 0);
+    if (imported > 0) {
+      autoImportNotice = `<div class="badge badge-success" style="margin-bottom:14px;">✅ Automatically imported ${imported} question${imported===1?"":"s"} from this subject's CA tests — review, edit, and adjust marks below.</div>`;
+      ({ data: questions } = await sb.from("assessment_questions").select("*").eq("assessment_id", assessmentId).order("order_index"));
+    }
+  }
+
   const totalMarks = (questions||[]).reduce((s,q) => s + Number(q.marks), 0);
   const isUniform = a.marking_mode === "uniform";
   const defaultMark = isUniform ? (a.uniform_mark_per_question || 1) : 1;
 
   body.innerHTML = `
+    ${autoImportNotice}
+    ${a.assessment_type === "exam" ? `<div id="caImportCard"></div>` : ""}
     <div class="settings-card">
       <div class="settings-card-title">Marking</div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;">
@@ -304,6 +325,73 @@ MARKS: 1"></textarea>
     <div id="qListHost"></div>`;
   loadBulkDraftIfAny(assessmentId, defaultMark);
   renderQuestionList(questions || [], assessmentId);
+  if (a.assessment_type === "exam") loadCaImportCard(assessmentId, a.class_id, a.subject_id, a.term_id);
+}
+
+// ============================================================
+// CA -> EXAM QUESTION IMPORT — copies (not shares) questions from
+// this subject's CA1/CA2/CA3 tests into an exam's own question bank,
+// so a teacher never has to retype the same questions. Once copied
+// they're completely independent rows: editing marks/text on either
+// side never touches the other.
+// ============================================================
+async function importCaQuestionsIntoExam(examAssessmentId, classId, subjectId, termId, existingCount) {
+  const { data: caAssessments } = await sb.from("assessments").select("id")
+    .eq("class_id", classId).eq("subject_id", subjectId).eq("term_id", termId).in("assessment_type", ["ca1","ca2","ca3"]);
+  if (!caAssessments || !caAssessments.length) return 0;
+
+  const { data: existingExamQuestions } = await sb.from("assessment_questions").select("question_text").eq("assessment_id", examAssessmentId);
+  const existingTexts = new Set((existingExamQuestions||[]).map(q => q.question_text.trim().toLowerCase()));
+
+  const { data: caQuestions } = await sb.from("assessment_questions").select("*")
+    .in("assessment_id", caAssessments.map(a => a.id)).order("order_index");
+  if (!caQuestions || !caQuestions.length) return 0;
+
+  // Skip anything whose exact question text is already in the exam's
+  // bank, so running this more than once never creates duplicates.
+  const toInsert = caQuestions
+    .filter(q => !existingTexts.has(q.question_text.trim().toLowerCase()))
+    .map((q, i) => ({
+      assessment_id: examAssessmentId, question_text: q.question_text,
+      option_a: q.option_a, option_b: q.option_b, option_c: q.option_c, option_d: q.option_d,
+      correct_option: q.correct_option, marks: q.marks, order_index: existingCount + i,
+    }));
+  // De-dupe within the source set too (same question might exist in
+  // both CA1 and CA2, for example).
+  const seen = new Set();
+  const finalRows = toInsert.filter(q => {
+    const key = q.question_text.trim().toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  if (!finalRows.length) return 0;
+
+  const { error } = await sb.from("assessment_questions").insert(finalRows);
+  if (error) { console.error("CA import failed:", error.message); return 0; }
+  return finalRows.length;
+}
+async function loadCaImportCard(assessmentId, classId, subjectId, termId) {
+  const host = document.getElementById("caImportCard");
+  if (!host) return;
+  const { data: caAssessments } = await sb.from("assessments").select("id, assessment_type, title").eq("class_id", classId).eq("subject_id", subjectId).eq("term_id", termId).in("assessment_type", ["ca1","ca2","ca3"]);
+  if (!caAssessments || !caAssessments.length) { host.innerHTML = ""; return; }
+
+  const counts = await Promise.all(caAssessments.map(a => sb.from("assessment_questions").select("id", { count: "exact", head: true }).eq("assessment_id", a.id)));
+  const rows = caAssessments.map((a, i) => ({ ...a, count: counts[i].count || 0 })).filter(a => a.count > 0);
+  if (!rows.length) { host.innerHTML = ""; return; }
+
+  host.innerHTML = `<div class="settings-card">
+    <div class="settings-card-title">Import More from CA Tests</div>
+    <p style="font-size:12px;color:var(--dash-muted);">${rows.map(r => `${r.assessment_type.toUpperCase()} (${r.title}) — ${r.count} question${r.count===1?"":"s"}`).join(" · ")}. Already-imported questions (matched by exact text) are skipped automatically.</p>
+    <button class="btn btn-green" onclick="manualImportCaQuestions('${assessmentId}','${classId}','${subjectId}','${termId}')"><i class="fa-solid fa-file-import"></i> Import All Available Now</button>
+  </div>`;
+}
+async function manualImportCaQuestions(assessmentId, classId, subjectId, termId) {
+  const { count: existingCount } = await sb.from("assessment_questions").select("id", { count: "exact", head: true }).eq("assessment_id", assessmentId);
+  const imported = await importCaQuestionsIntoExam(assessmentId, classId, subjectId, termId, existingCount || 0);
+  alert(imported > 0 ? `Imported ${imported} new question${imported===1?"":"s"}.` : "Nothing new to import — every CA question is already in this exam's bank.");
+  loadQuestionBankFor(assessmentId);
 }
 
 // ============================================================

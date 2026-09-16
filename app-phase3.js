@@ -200,7 +200,7 @@ async function loadUnlockRequests() {
   host.innerHTML = requests.map(r => `
     <div class="settings-card" style="background:var(--dash-surface);border-left:3px solid var(--dash-green);">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">
-        <div style="font-weight:800;">${r.staff.full_name} — ${r.subjects.name} <span class="badge badge-info">${r.classes.name} · ${r.period.toUpperCase()}</span></div>
+        <div style="font-weight:800;">${r.staff.full_name} — ${r.subjects.name} <span class="badge badge-info">${r.classes.name} · ${(r.period || "—").toUpperCase()}</span></div>
       </div>
       <div style="font-size:12px;color:var(--dash-muted);margin:6px 0;">Students: ${r.student_ids.map(id => nameOf[id]||id).join(", ")}</div>
       <div style="font-size:12px;margin-bottom:10px;">Reason: ${r.reason || "—"}</div>

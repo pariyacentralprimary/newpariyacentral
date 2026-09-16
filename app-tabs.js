@@ -361,6 +361,7 @@ async function loadClassScoreGrid() {
     <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
       <button class="btn btn-green" onclick="saveClassScores()"><i class="fa-solid fa-floppy-disk"></i> Save Scores</button>
       <button class="btn" onclick="viewClassReportCards()"><i class="fa-solid fa-file-lines"></i> View Report Cards</button>
+      <button class="btn" onclick="openBulkScoreImport()"><i class="fa-solid fa-file-import"></i> Bulk Import Scores</button>
       <span id="scoresDirtyBadge" class="badge badge-warning" style="display:none;"></span>
     </div>`;
 
@@ -424,7 +425,7 @@ async function submitUnlockRequest(subjectId, period) {
     class_id: state.currentClass.id, subject_id: subjectId, term_id: state.currentTermId, period,
     staff_id: state.staff.id, student_ids: studentIds, reason,
   });
-  if (error) { alert(error.message); btn.disabled = false; btn.textContent = "Send Request to Admin"; return; }
+  if (error) { alert("Couldn't send request: " + error.message); btn.disabled = false; btn.textContent = "Send Request to Admin"; return; }
   closeModal();
   alert("Request sent. The subject stays locked until admin approves.");
 }
